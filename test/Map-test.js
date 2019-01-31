@@ -181,15 +181,15 @@ function graphEquals (right, m) {
     }
     return r;
   }
-  return match(this.getTriples(null, null, null));     // Start with all triples.
+  return match(this.getQuads(null, null, null));     // Start with all triples.
 }
 
   function testEquiv (name, g1, g2, equals, mapping) {
     it("should test " + name + " to be " + equals, function () {
       var l = n3.Store(); l.toString = graphToString; l.equals = graphEquals;
       var r = n3.Store(); r.toString = graphToString;
-      g1.forEach(function (triple) { l.addTriple({subject: triple[0], predicate: triple[1], object: triple[2]}); });
-      g2.forEach(function (triple) { r.addTriple({subject: triple[0], predicate: triple[1], object: triple[2]}); });
+      g1.forEach(function (triple) { l.addQuad({subject: triple[0], predicate: triple[1], object: triple[2]}); });
+      g2.forEach(function (triple) { r.addQuad({subject: triple[0], predicate: triple[1], object: triple[2]}); });
       var m = {};
       var ret = l.equals(r, m);
       expect(ret).to.equal(equals, m);

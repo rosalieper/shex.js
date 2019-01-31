@@ -198,9 +198,10 @@ describe("A ShEx parser", function () {
            var schema = fs.readFileSync(shexRFile, "utf8");
            try {
              var schemaGraph = N3.Store();
-             schemaGraph.addTriples(N3.Parser({documentIRI: BASE, blankNodePrefix: "", format: "text/turtle"}).parse(schema));
+             schemaGraph.addQuads(N3.Parser({baseIRI: BASE, blankNodePrefix: "", format: "text/turtle"}).parse(schema));
              // console.log(schemaGraph.getTriples());
-             var schemaRoot = schemaGraph.getTriples(null, ShExUtil.RDF.type, nsPath + "shex#Schema")[0].subject;
+             var f = N3.DataFactory;
+             var schemaRoot = schemaGraph.getQuads(null, f.namedNode(ShExUtil.RDF.type), f.namedNode(nsPath + "shex#Schema"))[0].subject;
              parser._setFileName(ShExRSchemaFile);
              var graphParser = ShExValidator.construct(
                GraphSchema,
