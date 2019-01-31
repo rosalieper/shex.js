@@ -137,7 +137,7 @@ function graphEquals (right, m) {
   function match (g) {
     function val (term, mapping) {
       mapping = mapping || m;                     // Mostly used for left→right mappings.
-      if (n3.Util.isBlank(term))
+      if (n3.Util.isBlankNode(term))
         return (term in mapping) ? mapping[term] : null // Bnodes get current binding or null.
       else
         return term;                              // Other terms evaluate to themselves.
@@ -146,7 +146,7 @@ function graphEquals (right, m) {
     if (g.length == 0)                            // Success if there's nothing left to match.
       return true;
     var t = g.pop(), s = val(t.subject), o = val(t.object); // Take the first triple in left.
-    var tm = right.getTriplesByIRI(s, t.predicate, o);  // Find candidates in right.
+    var tm = right.getQuads(s, namedNode(t.predicate), o);  // Find candidates in right.
 
     var r = tm.reduce(function (ret, triple) {    // Walk through candidates in right.
       if (ret) return true;                       // Only examine first successful mapping.

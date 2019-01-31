@@ -250,7 +250,7 @@ function makeTurtleCache (selection) {
   };
   ret.getItems = function () {
     var data = this.refresh();
-    return data.getTriplesByIRI().map(t => {
+    return data.getQuads().map(t => {
       return Caches.inputData.meta.termToLex(t.subject);
     });
   };
@@ -1278,7 +1278,7 @@ function copyEditMapToFixedMap () {
 
   function getTriples (s, p, o) {
     var get = s === ShEx.ShapeMap.focus ? "subject" : "object";
-    return Caches.inputData.refresh().getTriplesByIRI(mine(s), mine(p), mine(o)).map(t => {
+    return Caches.inputData.refresh().getQuads(mine(s), mine(p), mine(o)).map(t => {
       return Caches.inputData.meta.termToLex(t[get]);
     });
     function mine (term) {

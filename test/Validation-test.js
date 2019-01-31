@@ -1,7 +1,7 @@
 //  "use strict";
 var VERBOSE = "VERBOSE" in process.env;
 var TERSE = VERBOSE;
-var TESTS = "TESTS" in process.env ? process.env.TESTS.split(/,/) : null;
+var TESTS = "TESTS" in process.env ? process.env.TESTS.split(/,,/) : null;
 var EARL = "EARL" in process.env;
 
 // var ShExUtil = require("../lib/ShExUtil");
@@ -86,11 +86,11 @@ describe("A ShEx validator", function () {
                // resolve relative URLs in results file
                if (["shape", "reference", "valueExprRef", "node", "subject", "predicate", "object"].indexOf(k) !== -1 &&
                    typeof obj[k] !== "object" &&
-                   N3Util.isIRI(obj[k])) {
+                   N3Util.isNamedNode(obj[k])) {
                  obj[k] = resolveRelativeIRI(["shape", "reference", "valueExprRef"].indexOf(k) !== -1 ? schemaURL : dataURL, obj[k]);
                } else if (["values"].indexOf(k) !== -1) {
                  for (var i = 0; i < obj[k].length; ++i) {
-                   if (typeof obj[k][i] !== "object" && N3Util.isIRI(obj[k][i])) {
+                   if (typeof obj[k][i] !== "object" && N3Util.isNamedNode(obj[k][i])) {
                      obj[k][i] = resolveRelativeIRI(dataURL, obj[k][i]);
                    }
                  };
@@ -170,7 +170,7 @@ describe("A ShEx validator", function () {
                   if (error) {
                     report("error parsing " + dataFile + ": " + error);
                   } else if (triple) {
-                    store.addTriple(triple);
+                    store.addQuad(triple);
                   } else {
                     try {
                       function maybeGetTerm (base, s) {
@@ -242,7 +242,7 @@ describe("A ShEx validator", function () {
 function resolveRelativeIRI (baseIri, relativeIri) {
   var p = N3.Parser({ documentIRI: baseIri });
   p._readSubject({type: "IRI", value: relativeIri});
-  return p._subject;
+  return p._subject.id;
 }
 
 // Parses a JSON object, restoring `undefined` values
