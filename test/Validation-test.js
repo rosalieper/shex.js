@@ -86,7 +86,7 @@ describe("A ShEx validator", function () {
                // resolve relative URLs in results file
                if (["shape", "reference", "valueExprRef", "node", "subject", "predicate", "object"].indexOf(k) !== -1 &&
                    typeof obj[k] !== "object" &&
-                   N3Util.isNamedNode(obj[k])) {
+                   ['"', '_'].indexOf(obj[k][0]) === -1) {
                  obj[k] = resolveRelativeIRI(["shape", "reference", "valueExprRef"].indexOf(k) !== -1 ? schemaURL : dataURL, obj[k]);
                } else if (["values"].indexOf(k) !== -1) {
                  for (var i = 0; i < obj[k].length; ++i) {
@@ -163,7 +163,7 @@ describe("A ShEx validator", function () {
               //   start = Object.keys(schema.action.shapes)[0];
 
               var store = new N3.Store();
-              var turtleParser = new N3.Parser({documentIRI: dataURL, blankNodePrefix: "", format: "text/turtle"});
+              var turtleParser = new N3.Parser({baseIRI: dataURL, blankNodePrefix: "", format: "text/turtle"});
               turtleParser.parse(
                 fs.readFileSync(dataFile, "utf8"),
                 function (error, triple, prefixes) {
@@ -240,7 +240,7 @@ describe("A ShEx validator", function () {
  * !! requires intimate (so intimate it makes me blush) knowledge of n3.
  */
 function resolveRelativeIRI (baseIri, relativeIri) {
-  var p = N3.Parser({ documentIRI: baseIri });
+  var p = N3.Parser({ baseIRI: baseIri });
   p._readSubject({type: "IRI", value: relativeIri});
   return p._subject.id;
 }
