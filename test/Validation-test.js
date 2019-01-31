@@ -90,7 +90,7 @@ describe("A ShEx validator", function () {
                  obj[k] = resolveRelativeIRI(["shape", "reference", "valueExprRef"].indexOf(k) !== -1 ? schemaURL : dataURL, obj[k]);
                } else if (["values"].indexOf(k) !== -1) {
                  for (var i = 0; i < obj[k].length; ++i) {
-                   if (typeof obj[k][i] !== "object" && N3Util.isNamedNode(obj[k][i])) {
+                   if (typeof obj[k][i] !== "object" && ['"', '_'].indexOf(obj[k][i][0]) === -1) {
                      obj[k][i] = resolveRelativeIRI(dataURL, obj[k][i]);
                    }
                  };
