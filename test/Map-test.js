@@ -11,6 +11,7 @@ var Promise = require("promise");
 var expect = require("chai").expect;
 var Path = require("path");
 var n3 = require("n3");
+var DF = n3.DataFactory;
 
 var maybeLog = VERBOSE ? console.log : function () {};
 
@@ -69,8 +70,8 @@ function geq (l, r) { // graphEquals needs a this
 
 describe('A ShEx Mapper', function () {
   var tests = [
-    ["there", ["Map/BPDAMFHIR/BPFHIR.shex"], ["Map/BPDAMFHIR/BPunitsDAM.shex"], "Map/BPDAMFHIR/BPFHIR.ttl", "tag:BPfhir123", "tag:b0", null, "Map/BPDAMFHIR/BPunitsDAM.ttl"],
-    ["back" , ["Map/BPDAMFHIR/BPunitsDAM.shex"], ["Map/BPDAMFHIR/BPFHIR.shex"], "Map/BPDAMFHIR/BPunitsDAM.ttl", "tag:b0", "tag:BPfhir123", null, "Map/BPDAMFHIR/BPFHIR.ttl"],
+    ["there", ["Map/BPDAMFHIR/BPFHIR.shex"], ["Map/BPDAMFHIR/BPunitsDAM.shex"], "Map/BPDAMFHIR/BPFHIR.ttl", DF.namedNode("tag:BPfhir123"), DF.namedNode("tag:b0"), null, "Map/BPDAMFHIR/BPunitsDAM.ttl"],
+    ["back" , ["Map/BPDAMFHIR/BPunitsDAM.shex"], ["Map/BPDAMFHIR/BPFHIR.shex"], "Map/BPDAMFHIR/BPunitsDAM.ttl", DF.namedNode("tag:b0"), DF.namedNode("tag:BPfhir123"), null, "Map/BPDAMFHIR/BPFHIR.ttl"],
 //    ["bifer", ["Map/BPDAMFHIR/BPFHIRsys.shex", "Map/BPDAMFHIR/BPFHIRdia.shex"], ["Map/BPDAMFHIR/BPunitsDAM.shex"], "Map/BPDAMFHIR/BPFHIR.ttl", "tag:BPfhir123", "tag:b0", null, "Map/BPDAMFHIR/BPunitsDAM.ttl"]
 //    ["bifb" , ["Map/BPDAMFHIR/BPFHIR.shex"], ["Map/BPDAMFHIR/BPunitsDAMsys.shex", "Map/BPDAMFHIR/BPunitsDAMdia.shex"], "Map/BPDAMFHIR/BPFHIR.ttl", "tag:b0", "tag:BPfhir123", null, "Map/BPDAMFHIR/BPunitsDAM.ttl"]
   ];
@@ -112,7 +113,7 @@ function graphToString () {
   var w = n3.Writer({
       write: function (chunk, encoding, done) { output += chunk; done && done(); },
   });
-  w.addTriples(this.getTriples(null, null, null)); // is this kosher with no end method?
+  w.addQuads(this.getQuads(null, null, null)); // is this kosher with no end method?
   return "{\n" + output + "\n}";
 }
 
@@ -137,7 +138,7 @@ function graphEquals (right, m) {
   function match (g) {
     function val (term, mapping) {
       mapping = mapping || m;                     // Mostly used for left→right mappings.
-      if (n3.Util.isBlankNode(term))
+      if (term[0] === '_' /* n3.Util.isBlankNode(term) */)
         return (term in mapping) ? mapping[term] : null // Bnodes get current binding or null.
       else
         return term;                              // Other terms evaluate to themselves.
@@ -145,8 +146,8 @@ function graphEquals (right, m) {
 
     if (g.length == 0)                            // Success if there's nothing left to match.
       return true;
-    var t = g.pop(), s = val(t.subject), o = val(t.object); // Take the first triple in left.
-    var tm = right.getQuads(s, namedNode(t.predicate), o);  // Find candidates in right.
+    var t = g.pop(), s = val(t.subject.id), o = val(t.object.id); // Take the first triple in left.
+    var tm = right.getQuads(s, DF.namedNode(t.predicate.id), o);  // Find candidates in right.
 
     var r = tm.reduce(function (ret, triple) {    // Walk through candidates in right.
       if (ret) return true;                       // Only examine first successful mapping.
@@ -165,8 +166,8 @@ function graphEquals (right, m) {
           return true;                                 //  there's no new binding.
         }
       }
-      if (!add(t.subject, triple.subject) ||     // If the bindings for tₗ.s→tᵣ.s fail
-          !add(t.object, triple.object) ||       // or the bindings for tₗ.o→tᵣ.o fail
+      if (!add(t.subject.id, triple.subject.id) ||     // If the bindings for tₗ.s→tᵣ.s fail
+          !add(t.object.id, triple.object.id) ||       // or the bindings for tₗ.o→tᵣ.o fail
           !match(g)) {                           // of the remaining triples fail,
         adds.forEach(function (added) {             // remove each added binding.
           delete back[m[added]];

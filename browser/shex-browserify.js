@@ -1801,7 +1801,7 @@ if (typeof module !== 'undefined' && require.main === module) {
 }
 }
 }).call(this,require('_process'))
-},{"./ShExUtil":4,"_process":282,"fs":119,"path":274}],2:[function(require,module,exports){
+},{"./ShExUtil":4,"_process":284,"fs":119,"path":276}],2:[function(require,module,exports){
 (function (process,__dirname){
 // **ShExLoader** return promise to load ShExC, ShExJ and N3 (Turtle) files.
 
@@ -2117,12 +2117,12 @@ function parseTurtle (text, mediaType, url, data, meta, dataOptions) {
           function (error, triple, prefixes) {
             if (prefixes) {
               meta.prefixes = prefixes;
-              data.addPrefixes(prefixes);
+              // data.addPrefixes(prefixes);
             }
             if (error) {
               reject("error parsing " + url + ": " + error);
             } else if (triple) {
-              data.addTriple(triple)
+              data.addQuad(triple)
             } else {
               meta.base = this._base;
               resolve([mediaType, url]);
@@ -2186,7 +2186,7 @@ if (typeof require !== "undefined" && typeof exports !== "undefined")
   module.exports = LoadPromise;
 
 }).call(this,require('_process'),"/lib")
-},{"../lib/ShExParser":3,"../lib/ShExUtil":4,"_process":282,"fs":119,"jsonld":227,"n3":248,"path":274,"promise":283,"request-promise":326}],3:[function(require,module,exports){
+},{"../lib/ShExParser":3,"../lib/ShExUtil":4,"_process":284,"fs":119,"jsonld":227,"n3":248,"path":276,"promise":285,"request-promise":328}],3:[function(require,module,exports){
 var ShExParser = (function () {
 
 // stolen as much as possible from SPARQL.js
@@ -2775,7 +2775,7 @@ var ShExUtil = {
     v.cleanIds = function () {
       for (var k in knownExpressions) {
         var known = knownExpressions[k];
-        if (known.refCount === 1 && N3.Util.isBlank(known.expr.id))
+        if (known.refCount === 1 && known.expr.id[0] === "_")
           delete known.expr.id;
       };
     }
@@ -2847,8 +2847,8 @@ var ShExUtil = {
           "language" in node ? "@" + node.language :
           ""
       )) :
-      N3.Util.isIRI(node) ? "<" + node + ">" :
-      N3.Util.isBlank(node) ? node :
+      N3.Util.isNamedNode(node) ? "<" + node + ">" :
+      N3.Util.isBlankNode(node) ? node :
       "???";
     }
     return this.valGrep(res, "TestedTriple", function (t) {
@@ -2873,11 +2873,11 @@ var ShExUtil = {
 
   n3jsToTurtle: function (n3js) {
     function termToLex (node) {
-      if (N3.Util.isIRI(node))
+      if (N3.Util.isNamedNode(node))
         return "<" + node + ">";
-      if (N3.Util.isBlank(node))
+      if (N3.Util.isBlankNode(node))
         return node;
-      var t = N3.Util.getLiteralType(node);
+      var t = node.datatypeString;
       if (t && t !== "http://www.w3.org/2001/XMLSchema#string")
         return "\"" + N3.Util.getLiteralValue(node) + "\"" +
         "^^<" + t + ">";
@@ -3454,7 +3454,7 @@ var ShExUtil = {
     function mapFunction (k, obj) {
       // resolve relative URLs in results file
       if (["shape", "reference", "node", "subject", "predicate", "object"].indexOf(k) !== -1 &&
-          N3.Util.isIRI(obj[k])) {
+          N3.Util.isNamedNode(obj[k])) {
         obj[k] = resolveRelativeIRI(base, obj[k]);
       }}
 
@@ -4143,7 +4143,7 @@ var ShExUtil = {
   },
 
   resolveRelativeIRI: function (baseIri, relativeIri) {
-    if (!N3.Util.isIRI(relativeIri))
+    if (!N3.Util.isNamedNode(relativeIri))
       return relativeIri; // not really an IRI
     var p = N3.Parser({ documentIRI: baseIri });
     p._readSubject({type: "IRI", value: relativeIri});
@@ -4283,8 +4283,8 @@ var ShExUtil = {
 
   makeN3DB: function (db, queryTracker) {
 
-    function getTriplesByIRI (s, p, o, g) {
-      return db.getTriplesByIRI(s, p, o, g);
+    function getQuads (s, p, o, g) {
+      return db.getQuads(s, p, o, g);
     }
     function getSubjects () { return db.getSubjects(); }
     function getPredicates () { return db.getPredicates(); }
@@ -4297,7 +4297,7 @@ var ShExUtil = {
         startTime = new Date();
         queryTracker.start(false, point, shapeLabel);
       }
-      var outgoing = db.getTriplesByIRI(point, null, null, null);
+      var outgoing = db.getQuads(point, null, null, null);
       if (queryTracker) {
         var time = new Date();
         queryTracker.end(outgoing, time - startTime);
@@ -4306,7 +4306,7 @@ var ShExUtil = {
       if (queryTracker) {
         queryTracker.start(true, point, shapeLabel);
       }
-      var incoming = db.getTriplesByIRI(null, null, point, null);
+      var incoming = db.getQuads(null, null, point, null);
       if (queryTracker) {
         queryTracker.end(incoming, new Date() - startTime);
       }
@@ -4319,28 +4319,28 @@ var ShExUtil = {
     return {
       // size: db.size,
       getNeighborhood: getNeighborhood,
-      getTriplesByIRI: getTriplesByIRI,
+      getQuads: getQuads,
       getSubjects: getSubjects,
       getPredicates: getPredicates,
       getObjects: getObjects,
       get size() { return db.size; }
-      // getTriplesByIRI: function (s, p, o, graph, shapeLabel) {
+      // getQuads: function (s, p, o, graph, shapeLabel) {
       //   // console.log(Error(s + p + o).stack)
       //   if (queryTracker)
       //     queryTracker.start(!!s, s ? s : o, shapeLabel);
-      //   var triples = db.getTriplesByIRI(s, p, o, graph)
+      //   var triples = db.getQuads(s, p, o, graph)
       //   if (queryTracker)
       //     queryTracker.end(triples, new Date() - startTime);
       //   return triples;
       // }
     };
   },
-  /** emulate N3Store().getTriplesByIRI() with additional parm.
+  /** emulate N3Store().getQuads() with additional parm.
    */
   makeQueryDB: function (endpoint, queryTracker) {
     var _ShExUtil = this;
 
-    function getTriplesByIRI(s, p, o, g) {
+    function getQuads(s, p, o, g) {
       return mapQueryToTriples("SELECT " + [
         (s?"":"?s"), (p?"":"?p"), (o?"":"?o"),
         "{",
@@ -4424,7 +4424,7 @@ var ShExUtil = {
 
     return {
       getNeighborhood: getNeighborhood,
-      getTriplesByIRI: getTriplesByIRI,
+      getQuads: getQuads,
       getSubjects: function () { return ["!Query DB can't index subjects"] },
       getPredicates: function () { return ["!Query DB can't index predicates"] },
       getObjects: function () { return ["!Query DB can't index objects"] },
@@ -4512,7 +4512,7 @@ return AddShExUtil(AddShExUtil);
 if (typeof require !== 'undefined' && typeof exports !== 'undefined')
   module.exports = ShExUtil; // node environment
 
-},{"../lib/ShExWriter":6,"hierarchy-closure":208,"n3":248,"util":399}],5:[function(require,module,exports){
+},{"../lib/ShExWriter":6,"hierarchy-closure":208,"n3":248,"util":401}],5:[function(require,module,exports){
 (function (process){
 /* ShExValidator - javascript module to validate a graph with respect to Shape Expressions
  *
@@ -4545,11 +4545,12 @@ var VERBOSE = "VERBOSE" in process.env;
 var ProgramFlowError = { type: "ProgramFlowError", errors: { type: "UntrackedError" } };
 
 var N3Util = require("n3").Util;
+var N3DataFactory = require("n3").DataFactory;
 
 function getLexicalValue (term) {
-  return N3Util.isIRI(term) ? term :
-    N3Util.isLiteral(term) ? N3Util.getLiteralValue(term) :
-    term.substr(2); // bnodes start with "_:"
+  return N3Util.isNamedNode(term) ? term.id :
+    N3Util.isLiteral(term) ? term.value :
+    term.value; // bnodes start with "_:"
 }
 
 
@@ -4713,13 +4714,13 @@ var decimalLexicalTests = {
         function ldify (term) {
           if (term[0] !== "\"")
             return term;
-          var ret = { value: N3Util.getLiteralValue(term) };
-          var dt = N3Util.getLiteralType(term);
+          var ret = { value: getLiteralValue(term) };
+          var dt = getLiteralType(term);
           if (dt &&
               dt !== "http://www.w3.org/2001/XMLSchema#string" &&
               dt !== "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString")
             ret.type = dt;
-          var lang = N3Util.getLiteralLanguage(term)
+          var lang = getLiteralLanguage(term);
           if (lang)
             ret.language = lang;
           return ret;
@@ -4820,12 +4821,12 @@ function ShExValidator_constructor(schema, options) {
    */
   this.validate = function (db, point, label, tracker, seen) {
     // default to schema's start shape
-    if (typeof point === "object") {
+    if (point.constructor === Array ) {
       var shapeMap = point;
       if (this.options.results === "api") {
         return shapeMap.map(pair => {
           var time = new Date();
-          var res = this.validate(db, pair.node, pair.shape, label, tracker); // really tracker and seen
+          var res = this.validate(db, rdfjsify(pair.node), pair.shape, label, tracker); // really tracker and seen
           time = new Date() - time;
           return {
             node: pair.node,
@@ -4837,7 +4838,7 @@ function ShExValidator_constructor(schema, options) {
         });
       }
       var results = shapeMap.reduce((ret, pair) => {
-        var res = this.validate(db, pair.node, pair.shape, tracker, seen);
+        var res = this.validate(db, rdfjsify(pair.node), pair.shape, tracker, seen);
         return "errors" in res ?
           { passes: ret.passes, failures: ret.failures.concat(res) } :
           { passes: ret.passes.concat(res), failures: ret.failures } ;
@@ -4883,26 +4884,26 @@ function ShExValidator_constructor(schema, options) {
     } else if (!("shapes" in this.schema) || this.schema.shapes.length === 0) {
       runtimeError("shape " + label + " not found; no shapes in schema");
     } else if (label in this.schema.shapes) {
-      shape = schema.shapes[label]
+      shape = schema.shapes[label];
     } else {
       runtimeError("shape " + label + " not found in:\n" + Object.keys(this.schema.shapes || []).map(s => "  " + s).join("\n"));
     }
 
     if (seen === undefined)
       seen = {};
-    var seenKey = point + "@" + (label === Start ? "_: -start-" : label);
+    var seenKey = scalarify(point) + "@" + (label === Start ? "_: -start-" : label);
     if (seenKey in seen)
       return tracker.recurse({
         type: "Recursion",
-        node: ldify(point),
+        node: ldify(scalarify(point)),
         shape: label
       });
     if ("known" in this && seenKey in this.known)
       return tracker.known(this.known[seenKey]);
-    seen[seenKey] = { point: point, shape: label };
-    tracker.enter(point, label);
+    seen[seenKey] = { point: scalarify(point), shape: label };
+    tracker.enter(scalarify(point), label);
     var ret = this._validateShapeExpr(db, point, shape, label, tracker, seen);
-    tracker.exit(point, label, ret);
+    tracker.exit(scalarify(point), label, ret);
     delete seen[seenKey];
     if ("known" in this)
       this.known[seenKey] = ret;
@@ -4919,7 +4920,7 @@ function ShExValidator_constructor(schema, options) {
       var errors = this._errorsMatchingNodeConstraint(point, shapeExpr, null);
       return errors.length ? {
         type: "Failure",
-        node: ldify(point),
+        node: ldify(scalarify(point)),
         shape: shapeLabel,
         errors: errors.map(function (miss) {
           return {
@@ -4929,7 +4930,7 @@ function ShExValidator_constructor(schema, options) {
         })
       } : {
         type: "NodeTest",
-        node: ldify(point),
+        node: ldify(scalarify(point)),
         shape: shapeLabel,
         shapeExpr: shapeExpr
       };
@@ -4980,7 +4981,7 @@ function ShExValidator_constructor(schema, options) {
     if ("startActs" in schema && !this.semActHandler.dispatchAll(schema.startActs, null, startAcionStorage))
       return {
         type: "Failure",
-        node: ldify(point),
+        node: ldify(scalarify(point)),
         shape: shapeLabel,
         errors: ['semact failure']
       }; // some semAct aborted !! return real error
@@ -5042,7 +5043,7 @@ function ShExValidator_constructor(schema, options) {
           ord < outgoingLength &&                           // not an incoming triple
           ord in tripleList.misses) {                       // predicate matched some constraint(s)
         if (shape.extra !== undefined &&
-            shape.extra.indexOf(neighborhood[ord].predicate) !== -1) {
+            shape.extra.indexOf(scalarify(neighborhood[ord].predicate)) !== -1) {
           extras.push(ord);
         } else {                                            // not declared extra
           ret.push({                                        // so it's a missed triple.
@@ -5135,7 +5136,7 @@ function ShExValidator_constructor(schema, options) {
 
       // @@ add to tracker: f("post-regexp " + usedTriples.join(" "));
 
-      var possibleRet = { type: "ShapeTest", node: ldify(point), shape: shapeLabel };
+      var possibleRet = { type: "ShapeTest", node: ldify(scalarify(point)), shape: shapeLabel };
       if (Object.keys(results).length > 0) // only include .solution for non-empty pattern
         possibleRet.solution = results;
       if ("semActs" in shape &&
@@ -5159,14 +5160,14 @@ function ShExValidator_constructor(schema, options) {
         var t = neighborhood[miss.tripleNo];
         return {
           type: "TypeMismatch",
-          triple: {type: "TestedTriple", subject: t.subject, predicate: t.predicate, object: ldify(t.object)},
+          triple: {type: "TestedTriple", subject: scalarify(t.subject), predicate: scalarify(t.predicate), object: ldify(scalarify(t.object))},
           constraint: constraintList[miss.constraintNo],
           errors: miss.errors
         };
       });
       ret = {
         type: "Failure",
-        node: ldify(point),
+        node: ldify(scalarify(point)),
         shape: shapeLabel,
         errors: missErrors.concat(partitionErrors.length === 1 ? partitionErrors[0].errors : partitionErrors) 
       };
@@ -5229,7 +5230,7 @@ function ShExValidator_constructor(schema, options) {
       var ret = _ShExValidator._errorsMatchingShapeExpr(value, valueExpr.shapeExpr, recurse, direct, true);
       return ret.length ?
         [] :
-        ["Error validating " + value + " as " + JSON.stringify(valueExpr) + ": expected NOT to pass"];
+        ["Error validating " + scalarify(value) + " as " + JSON.stringify(valueExpr) + ": expected NOT to pass"];
     } else {
       throw Error("unknown value expression type '" + valueExpr.type + "'");
     }
@@ -5240,15 +5241,15 @@ function ShExValidator_constructor(schema, options) {
    */
   this._errorsMatchingNodeConstraint = function (value, valueExpr, recurse) {
     var errors = [];
-    var label = N3Util.isLiteral(value) ? N3Util.getLiteralValue(value) :
-      N3Util.isBlank(value) ? value.substring(2) :
-      value;
-    var dt = N3Util.isLiteral(value) ? N3Util.getLiteralType(value) : null;
+    var label = N3Util.isLiteral(value) ? value.value :
+      N3Util.isBlankNode(value) ? value.id.substring(2) :
+        typeof value === "object" ? value.id : value; // !!! shouldn't need to inspect the object type!
+    var dt = N3Util.isLiteral(value) ? value.datatypeString : null;
     var numeric = integerDatatypes.indexOf(dt) !== -1 ? XSD + "integer" : numericDatatypes.indexOf(dt) !== -1 ? dt : undefined;
 
     function validationError () {
       var errorStr = Array.prototype.join.call(arguments, "");
-      errors.push("Error validating " + value + " as " + JSON.stringify(valueExpr) + ": " + errorStr);
+      errors.push("Error validating " + scalarify(value) + " as " + JSON.stringify(valueExpr) + ": " + errorStr);
       return false;
     }
     // if (negated) ;
@@ -5259,7 +5260,7 @@ function ShExValidator_constructor(schema, options) {
         if (["iri", "bnode", "literal", "nonliteral"].indexOf(valueExpr.nodeKind) === -1) {
           validationError("unknown node kind '" + valueExpr.nodeKind + "'");
         }
-        if (N3Util.isBlank(value)) {
+        if (N3Util.isBlankNode(value)) {
           if (valueExpr.nodeKind === "iri" || valueExpr.nodeKind === "literal") {
             validationError("blank node found when " + valueExpr.nodeKind + " expected");
           }
@@ -5278,8 +5279,8 @@ function ShExValidator_constructor(schema, options) {
         if (!N3Util.isLiteral(value)) {
           validationError("mismatched datatype: " + value + " is not a literal with datatype " + valueExpr.datatype);
         }
-        else if (N3Util.getLiteralType(value) !== valueExpr.datatype) {
-          validationError("mismatched datatype: " + N3Util.getLiteralType(value) + " !== " + valueExpr.datatype);
+        else if (value.datatypeString !== valueExpr.datatype) {
+          validationError("mismatched datatype: " + value.datatypeString + " !== " + valueExpr.datatype);
         }
         else if (numeric) {
           testRange(numericParsers[numeric](label, validationError), valueExpr.datatype, validationError);
@@ -5297,7 +5298,7 @@ function ShExValidator_constructor(schema, options) {
       if (valueExpr.values) {
         if (N3Util.isLiteral(value) && valueExpr.values.reduce((ret, v) => {
           if (ret) return true;
-          var ld = ldify(value);
+          var ld = ldify(scalarify(value));
           if (v.type === "Language") {
             return v.languageTag === ld.language; // @@ use equals/normalizeTest
           }
@@ -5308,7 +5309,7 @@ function ShExValidator_constructor(schema, options) {
             v.language === ld.language;
         }, false)) {
           // literal match
-        } else if (valueExpr.values.indexOf(value) !== -1) {
+        } else if (valueExpr.values.indexOf(scalarify(value)) !== -1) {
           // trivial match
         } else {
           if (!(valueExpr.values.some(function (valueConstraint) {
@@ -5329,9 +5330,9 @@ function ShExValidator_constructor(schema, options) {
               function normalizedTest (val, ref, func) {
                 if (N3Util.isLiteral(val)) {
                   if (["LiteralStem", "LiteralStemRange"].indexOf(valueConstraint.type) !== -1) {
-                    return func(N3Util.getLiteralValue(val), ref);
+                    return func(val.value, ref);
                   } else if (["LanguageStem", "LanguageStemRange"].indexOf(valueConstraint.type) !== -1) {
-                    return func(N3Util.getLiteralLanguage(val) || null, ref);
+                    return func(val.language || null, ref);
                   } else {
                     return validationError("literal " + val + " not comparable with non-literal " + ref);
                   }
@@ -5339,7 +5340,7 @@ function ShExValidator_constructor(schema, options) {
                   if (["IriStem", "IriStemRange"].indexOf(valueConstraint.type) === -1) {
                     return validationError("nonliteral " + val + " not comparable with literal " + JSON.stringify(ref));
                   } else {
-                    return func(val, ref);
+                    return func(val.id, ref);
                   }
                 }
               }
@@ -5384,7 +5385,7 @@ function ShExValidator_constructor(schema, options) {
               // ignore -- would have caught it above
             }
           }))) {
-            validationError("value " + value + " not found in set " + JSON.stringify(valueExpr.values));
+            validationError("value " + scalarify(value) + " not found in set " + JSON.stringify(valueExpr.values));
           }
         }
       }
@@ -5400,7 +5401,7 @@ function ShExValidator_constructor(schema, options) {
 
     Object.keys(stringTests).forEach(function (test) {
       if (test in valueExpr && !stringTests[test](label, valueExpr[test])) {
-        validationError("facet violation: expected " + test + " of " + valueExpr[test] + " but got " + value);
+        validationError("facet violation: expected " + test + " of " + valueExpr[test] + " but got " + scalarify(value));
       }
     });
 
@@ -5408,10 +5409,10 @@ function ShExValidator_constructor(schema, options) {
       if (test in valueExpr) {
         if (numeric) {
           if (!numericValueTests[test](numericParsers[numeric](label, validationError), valueExpr[test])) {
-            validationError("facet violation: expected " + test + " of " + valueExpr[test] + " but got " + value);
+            validationError("facet violation: expected " + test + " of " + valueExpr[test] + " but got " + scalarify(value));
           }
         } else {
-          validationError("facet violation: numeric facet " + test + " can't apply to " + value);
+          validationError("facet violation: numeric facet " + test + " can't apply to " + scalarify(value));
         }
       }
     });
@@ -5420,10 +5421,10 @@ function ShExValidator_constructor(schema, options) {
       if (test in valueExpr) {
         if (numeric === XSD + "integer" || numeric === XSD + "decimal") {
           if (!decimalLexicalTests[test](""+numericParsers[numeric](label, validationError), valueExpr[test])) {
-            validationError("facet violation: expected " + test + " of " + valueExpr[test] + " but got " + value);
+            validationError("facet violation: expected " + test + " of " + valueExpr[test] + " but got " + scalarify(value));
           }
         } else {
-          validationError("facet violation: numeric facet " + test + " can't apply to " + value);
+          validationError("facet violation: numeric facet " + test + " can't apply to " + scalarify(value));
         }
       }
     });
@@ -5650,10 +5651,10 @@ var N3jsTripleToString = function () {
       [ "http://www.w3.org/2001/XMLSchema#integer",
         "http://www.w3.org/2001/XMLSchema#float",
         "http://www.w3.org/2001/XMLSchema#double"
-      ].indexOf(N3Util.getLiteralType(n)) !== -1 ?
+      ].indexOf(n.datatypeString) !== -1 ?
       parseInt(N3Util.getLiteralValue(n)) :
       n :
-    N3Util.isBlank(n) ?
+    N3Util.isBlankNode(n) ?
       n :
       "<" + n + ">";
   }
@@ -5676,7 +5677,7 @@ var N3jsTripleToString = function () {
 function indexNeighborhood (triples) {
   return {
     byPredicate: triples.reduce(function (ret, t) {
-      var p = t.predicate;
+      var p = t.predicate.id;
       if (!(p in ret))
         ret[p] = [];
       ret[p].push(t);
@@ -5698,9 +5699,9 @@ function indexNeighborhood (triples) {
  */
 function sparqlOrder (l, r) {
   var [lprec, rprec] = [l, r].map(
-    x => N3Util.isBlank(x) ? 1 : N3Util.isLiteral(x) ? 2 : 3
+    x => N3Util.isBlankNode(x) ? 1 : N3Util.isLiteral(x) ? 2 : 3
   );
-  return lprec === rprec ? l.localeCompare(r) : lprec - rprec;
+  return lprec === rprec ? l.id.localeCompare(r.id) : lprec - rprec;
 }
 
 /* Return a list of n ""s.
@@ -5732,6 +5733,53 @@ function runtimeError () {
   throw e;
 }
 
+  
+  function scalarify (node) {
+    return N3Util.isNamedNode(node)
+      ? node.id
+      : N3Util.isBlankNode(node)
+      ? node.id
+      : node.id
+  }
+
+  // "\"1999-12-31\"^^http://www.w3.org/2001/XMLSchema#date"
+  function rdfjsify (node) {
+    return node[0] === "_"
+      ? N3DataFactory.blankNode(node.substr(2))
+      : node[0] === "\""
+      ? N3DataFactory.literal(getLiteralValue(node),
+                              getLiteralLanguage(node) ||
+                              N3DataFactory.namedNode(getLiteralType(node)))
+      : N3DataFactory.namedNode(node);
+  }
+
+  // Gets the string value of a literal in the N3 library
+  function getLiteralValue (literal) {
+    var match = /^"([^]*)"/.exec(literal);
+    if (!match)
+      throw new Error(literal + ' is not a literal');
+    return match[1];
+  }
+
+  // Gets the type of a literal in the N3 library
+  function getLiteralType (literal) {
+    const Xsd = 'http://www.w3.org/2001/XMLSchema#';
+    const XsdString  = Xsd + 'string';
+    const RdfLangString = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';
+    var match = /^"[^]*"(?:\^\^([^"]+)|(@)[^@"]+)?$/.exec(literal);
+    if (!match)
+      throw new Error(literal + ' is not a literal');
+    return match[1] || (match[2] ? RdfLangString : XsdString);
+  }
+
+  // Gets the language of a literal in the N3 library
+  function getLiteralLanguage (literal) {
+    var match = /^"[^]*"(?:@([^@"]+)|\^\^[^"]+)?$/.exec(literal);
+    if (!match)
+      throw new Error(literal + ' is not a literal');
+    return match[1] ? match[1].toLowerCase() : '';
+  }
+
   return {
     construct: ShExValidator_constructor,
     start: Start,
@@ -5744,7 +5792,7 @@ if (typeof require !== "undefined" && typeof exports !== "undefined")
   module.exports = ShExValidator;
 
 }).call(this,require('_process'))
-},{"../lib/regex/nfax-val-1err":10,"../lib/regex/threaded-val-nerr":11,"_process":282,"n3":248}],6:[function(require,module,exports){
+},{"../lib/regex/nfax-val-1err":10,"../lib/regex/threaded-val-nerr":11,"_process":284,"n3":248}],6:[function(require,module,exports){
 // **ShExWriter** writes ShEx documents.
 
 var ShExWriter = (function () {
@@ -6372,7 +6420,7 @@ return ShExWriter;
 if (typeof require !== 'undefined' && typeof exports !== 'undefined')
   module.exports = ShExWriter; // node environment
 
-},{"util":399}],7:[function(require,module,exports){
+},{"util":401}],7:[function(require,module,exports){
 /* ShapeMap - javascript module to associate RDF nodes with labeled shapes.
  *
  * Status: Early implementation
@@ -7554,7 +7602,7 @@ if (typeof module !== 'undefined' && require.main === module) {
 }
 }
 }).call(this,require('_process'))
-},{"./ShExUtil":4,"./ShExValidator":5,"./ShapeMap":7,"_process":282,"fs":119,"path":274}],9:[function(require,module,exports){
+},{"./ShExUtil":4,"./ShExValidator":5,"./ShapeMap":7,"_process":284,"fs":119,"path":276}],9:[function(require,module,exports){
 var ShapeMapParser = (function () {
 
 // stolen as much as possible from SPARQL.js
@@ -7877,7 +7925,7 @@ var NFAXVal1Err = (function () {
           var valueExpr = extend({}, c.valueExpr);
           if ("reference" in valueExpr) {
             var ref = valueExpr.reference;
-            if (N3Util.isBlank(ref))
+            if (N3Util.isBlankNode(ref))
               valueExpr.reference = schema.shapes[ref];
           }
           return extend({
@@ -8060,21 +8108,21 @@ var NFAXVal1Err = (function () {
           var triple = neighborhood[tno];
           var ret = {
             type: "TestedTriple",
-            subject: triple.subject,
-            predicate: triple.predicate,
+            subject: triple.subject.id,
+            predicate: triple.predicate.id,
             object: ldify(triple.object)
           };
 
         function ldify (term) {
-          if (term[0] !== "\"")
-            return term;
-          var ret = { value: N3Util.getLiteralValue(term) };
-          var dt = N3Util.getLiteralType(term);
+          if (term.termType !== "Literal")
+            return term.id;
+          var ret = { value: term.value };
+          var dt = term.datatypeString;
           if (dt &&
               dt !== "http://www.w3.org/2001/XMLSchema#string" &&
               dt !== "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString")
             ret.type = dt;
-          var lang = N3Util.getLiteralLanguage(term)
+          var lang = term.language
           if (lang)
             ret.language = lang;
           return ret;
@@ -8087,7 +8135,7 @@ var NFAXVal1Err = (function () {
                 type: "ReferenceError", focus: focus,
                 shape: shape, errors: sub
               };
-              if (typeof shapeLabel === "string" && N3Util.isBlank(shapeLabel))
+              if (typeof shapeLabel === "string" && N3Util.isBlankNode(shapeLabel))
                 err.referencedShape = shape;
               return [err];
             }
@@ -8106,7 +8154,11 @@ var NFAXVal1Err = (function () {
             errors = errors.concat(checkValueExpr(ptr.inverse ? triple.subject : triple.object, ptr.valueExpr, diveRecurse, diveDirect));
 
           if (errors.length === 0 && "semActs" in m.c &&
-              !semActHandler.dispatchAll(m.c.semActs, triple, ret))
+              !semActHandler.dispatchAll(m.c.semActs, {
+                subject: scalarify(triple.subject),
+                predicate: scalarify(triple.predicate),
+                object: scalarify(triple.object),
+              }, ret))
             errors.push({ type: "SemActFailure", errors: [{ type: "UntrackedSemActFailure" }] }) // some semAct aborted
           return ret;
         })
@@ -8146,6 +8198,14 @@ function extend(base) {
       base[name] = arg[name];
   return base;
 }
+
+  function scalarify (node) {
+    return N3Util.isNamedNode(node)
+      ? node.id
+      : N3Util.isBlankNode(node)
+      ? node.id
+      : node.id
+  }
 
 // ## Exports
 
@@ -8294,7 +8354,7 @@ function vpEngine (schema, shape) {
             var valueExpr = extend({}, expr.valueExpr);
             if ("reference" in valueExpr) {
               var ref = valueExpr.reference;
-              if (N3Util.isBlank(ref))
+              if (N3Util.isBlankNode(ref))
                 valueExpr.reference = schema.shapes[ref];
             }
             ret.push({
@@ -8435,15 +8495,15 @@ function vpEngine (schema, shape) {
     function finish (fromValidatePoint, constraintList, neighborhood, recurse, direct, semActHandler, checkValueExpr) {
       function _dive (solns) {
         function ldify (term) {
-          if (term[0] !== "\"")
-            return term;
-          var ret = { value: N3Util.getLiteralValue(term) };
-          var dt = N3Util.getLiteralType(term);
+          if (term.termType !== "Literal")
+            return term.id;
+          var ret = { value: term.value };
+          var dt = term.datatypeString;
           if (dt &&
               dt !== "http://www.w3.org/2001/XMLSchema#string" &&
               dt !== "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString")
             ret.type = dt;
-          var lang = N3Util.getLiteralLanguage(term)
+          var lang = term.language
           if (lang)
             ret.language = lang;
           return ret;
@@ -8462,7 +8522,7 @@ function vpEngine (schema, shape) {
             var t = neighborhood[x.tripleNo];
             var expr = constraintList[x.constraintNo];
             var ret = {
-              type: "TestedTriple", subject: t.subject, predicate: t.predicate, object: ldify(t.object)
+              type: "TestedTriple", subject: t.subject.id, predicate: t.predicate.id, object: ldify(t.object)
             };
             function diver (focus, shapeLabel, dive) {
               var sub = dive(focus, shapeLabel);
@@ -8472,7 +8532,7 @@ function vpEngine (schema, shape) {
                   type: "ReferenceError", focus: focus,
                   shape: shapeLabel
                 };
-                if (typeof shapeLabel === "string" && N3Util.isBlank(shapeLabel))
+                if (typeof shapeLabel === "string" && N3Util.isBlankNode(shapeLabel))
                   err.referencedShape = shape;
                 err.errors = sub;
                 return [err];
@@ -8492,7 +8552,11 @@ function vpEngine (schema, shape) {
                 checkValueExpr(expr.inverse ? t.subject : t.object, expr.valueExpr, diveRecurse, diveDirect) :
                 [];
             if (subErrors.length === 0 && "semActs" in expr &&
-                !semActHandler.dispatchAll(expr.semActs, t, ret))
+                !semActHandler.dispatchAll(expr.semActs, {
+                  subject: scalarify(t.subject),
+                  predicate: scalarify(t.predicate),
+                  object: scalarify(t.object),
+                }, ret))
               subErrors.push({ type: "SemActFailure", errors: [{ type: "UntrackedSemActFailure" }] }) // some semAct aborted
             if (subErrors.length > 0) {
               fromValidatePoint.errors = fromValidatePoint.errors || [];
@@ -8519,6 +8583,14 @@ function extend(base) {
       base[name] = arg[name];
   return base;
 }
+
+  function scalarify (node) {
+    return N3Util.isNamedNode(node)
+      ? node.id
+      : N3Util.isBlankNode(node)
+      ? node.id
+      : node.id
+  }
 
 return {
   name: "threaded-val-nerr",
@@ -9988,7 +10060,7 @@ function resolveIds(schema) {
   return localRefs;
 }
 
-},{"./schema_obj":20,"./util":22,"fast-deep-equal":170,"json-schema-traverse":223,"uri-js":394}],19:[function(require,module,exports){
+},{"./schema_obj":20,"./util":22,"fast-deep-equal":170,"json-schema-traverse":223,"uri-js":396}],19:[function(require,module,exports){
 'use strict';
 
 var ruleModules = require('../dotjs')
@@ -14530,7 +14602,7 @@ Entity.prototype.encode = function encode(data, enc, /* internal */ reporter) {
   return this._getEncoder(enc).encode(data, reporter);
 };
 
-},{"../asn1":56,"inherits":217,"vm":404}],58:[function(require,module,exports){
+},{"../asn1":56,"inherits":217,"vm":406}],58:[function(require,module,exports){
 var inherits = require('inherits');
 var Reporter = require('../base').Reporter;
 var Buffer = require('buffer').Buffer;
@@ -16497,7 +16569,7 @@ Reader.prototype._readTag = function (tag) {
 
 module.exports = Reader;
 
-},{"./errors":70,"./types":73,"assert":77,"safer-buffer":342}],73:[function(require,module,exports){
+},{"./errors":70,"./types":73,"assert":77,"safer-buffer":344}],73:[function(require,module,exports){
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 
@@ -16854,7 +16926,7 @@ Writer.prototype._ensure = function (len) {
 
 module.exports = Writer;
 
-},{"./errors":70,"./types":73,"assert":77,"safer-buffer":342}],75:[function(require,module,exports){
+},{"./errors":70,"./types":73,"assert":77,"safer-buffer":344}],75:[function(require,module,exports){
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 // If you have no idea what ASN.1 or BER is, see this:
@@ -17091,7 +17163,7 @@ function _setExports(ndebug) {
 module.exports = _setExports(process.env.NODE_NDEBUG);
 
 }).call(this,{"isBuffer":require("../is-buffer/index.js")},require('_process'))
-},{"../is-buffer/index.js":218,"_process":282,"assert":77,"stream":377,"util":399}],77:[function(require,module,exports){
+},{"../is-buffer/index.js":218,"_process":284,"assert":77,"stream":379,"util":401}],77:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -18207,7 +18279,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":79,"_process":282,"inherits":78}],81:[function(require,module,exports){
+},{"./support/isBuffer":79,"_process":284,"inherits":78}],81:[function(require,module,exports){
 
 /*!
  *  Copyright 2010 LearnBoost <dev@learnboost.com>
@@ -18421,7 +18493,7 @@ function canonicalizeResource (resource) {
 }
 module.exports.canonicalizeResource = canonicalizeResource
 
-},{"crypto":134,"url":395}],82:[function(require,module,exports){
+},{"crypto":134,"url":397}],82:[function(require,module,exports){
 (function (process,Buffer){
 var aws4 = exports,
     url = require('url'),
@@ -18757,7 +18829,7 @@ aws4.sign = function(request, credentials) {
 }
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./lru":83,"_process":282,"buffer":122,"crypto":134,"querystring":306,"url":395}],83:[function(require,module,exports){
+},{"./lru":83,"_process":284,"buffer":122,"crypto":134,"querystring":308,"url":397}],83:[function(require,module,exports){
 module.exports = function(size) {
   return new LruCache(size)
 }
@@ -19566,7 +19638,7 @@ module.exports = {
       pbkdf: bcrypt_pbkdf
 };
 
-},{"tweetnacl":393}],86:[function(require,module,exports){
+},{"tweetnacl":395}],86:[function(require,module,exports){
 (function (process,global,setImmediate){
 /* @preserve
  * The MIT License (MIT)
@@ -25216,7 +25288,7 @@ module.exports = ret;
 },{"./es5":13}]},{},[4])(4)
 });                    ;if (typeof window !== 'undefined' && window !== null) {                               window.P = window.Promise;                                                     } else if (typeof self !== 'undefined' && self !== null) {                             self.P = self.Promise;                                                         }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"_process":282,"timers":383}],87:[function(require,module,exports){
+},{"_process":284,"timers":385}],87:[function(require,module,exports){
 (function (module, exports) {
   'use strict';
 
@@ -28944,7 +29016,7 @@ AES.prototype.scrub = function () {
 
 module.exports.AES = AES
 
-},{"safe-buffer":341}],91:[function(require,module,exports){
+},{"safe-buffer":343}],91:[function(require,module,exports){
 var aes = require('./aes')
 var Buffer = require('safe-buffer').Buffer
 var Transform = require('cipher-base')
@@ -29063,7 +29135,7 @@ StreamCipher.prototype.setAAD = function setAAD (buf) {
 
 module.exports = StreamCipher
 
-},{"./aes":90,"./ghash":95,"./incr32":96,"buffer-xor":121,"cipher-base":125,"inherits":217,"safe-buffer":341}],92:[function(require,module,exports){
+},{"./aes":90,"./ghash":95,"./incr32":96,"buffer-xor":121,"cipher-base":125,"inherits":217,"safe-buffer":343}],92:[function(require,module,exports){
 var ciphers = require('./encrypter')
 var deciphers = require('./decrypter')
 var modes = require('./modes/list.json')
@@ -29204,7 +29276,7 @@ function createDecipher (suite, password) {
 exports.createDecipher = createDecipher
 exports.createDecipheriv = createDecipheriv
 
-},{"./aes":90,"./authCipher":91,"./modes":103,"./streamCipher":106,"cipher-base":125,"evp_bytestokey":167,"inherits":217,"safe-buffer":341}],94:[function(require,module,exports){
+},{"./aes":90,"./authCipher":91,"./modes":103,"./streamCipher":106,"cipher-base":125,"evp_bytestokey":167,"inherits":217,"safe-buffer":343}],94:[function(require,module,exports){
 var MODES = require('./modes')
 var AuthCipher = require('./authCipher')
 var Buffer = require('safe-buffer').Buffer
@@ -29320,7 +29392,7 @@ function createCipher (suite, password) {
 exports.createCipheriv = createCipheriv
 exports.createCipher = createCipher
 
-},{"./aes":90,"./authCipher":91,"./modes":103,"./streamCipher":106,"cipher-base":125,"evp_bytestokey":167,"inherits":217,"safe-buffer":341}],95:[function(require,module,exports){
+},{"./aes":90,"./authCipher":91,"./modes":103,"./streamCipher":106,"cipher-base":125,"evp_bytestokey":167,"inherits":217,"safe-buffer":343}],95:[function(require,module,exports){
 var Buffer = require('safe-buffer').Buffer
 var ZEROES = Buffer.alloc(16, 0)
 
@@ -29411,7 +29483,7 @@ GHASH.prototype.final = function (abl, bl) {
 
 module.exports = GHASH
 
-},{"safe-buffer":341}],96:[function(require,module,exports){
+},{"safe-buffer":343}],96:[function(require,module,exports){
 function incr32 (iv) {
   var len = iv.length
   var item
@@ -29482,7 +29554,7 @@ exports.encrypt = function (self, data, decrypt) {
   return out
 }
 
-},{"buffer-xor":121,"safe-buffer":341}],99:[function(require,module,exports){
+},{"buffer-xor":121,"safe-buffer":343}],99:[function(require,module,exports){
 var Buffer = require('safe-buffer').Buffer
 
 function encryptByte (self, byteParam, decrypt) {
@@ -29526,7 +29598,7 @@ exports.encrypt = function (self, chunk, decrypt) {
   return out
 }
 
-},{"safe-buffer":341}],100:[function(require,module,exports){
+},{"safe-buffer":343}],100:[function(require,module,exports){
 var Buffer = require('safe-buffer').Buffer
 
 function encryptByte (self, byteParam, decrypt) {
@@ -29553,7 +29625,7 @@ exports.encrypt = function (self, chunk, decrypt) {
   return out
 }
 
-},{"safe-buffer":341}],101:[function(require,module,exports){
+},{"safe-buffer":343}],101:[function(require,module,exports){
 var xor = require('buffer-xor')
 var Buffer = require('safe-buffer').Buffer
 var incr32 = require('../incr32')
@@ -29585,7 +29657,7 @@ exports.encrypt = function (self, chunk) {
   return xor(chunk, pad)
 }
 
-},{"../incr32":96,"buffer-xor":121,"safe-buffer":341}],102:[function(require,module,exports){
+},{"../incr32":96,"buffer-xor":121,"safe-buffer":343}],102:[function(require,module,exports){
 exports.encrypt = function (self, block) {
   return self._cipher.encryptBlock(block)
 }
@@ -29856,7 +29928,7 @@ StreamCipher.prototype._final = function () {
 
 module.exports = StreamCipher
 
-},{"./aes":90,"cipher-base":125,"inherits":217,"safe-buffer":341}],107:[function(require,module,exports){
+},{"./aes":90,"cipher-base":125,"inherits":217,"safe-buffer":343}],107:[function(require,module,exports){
 var DES = require('browserify-des')
 var aes = require('browserify-aes/browser')
 var aesModes = require('browserify-aes/modes')
@@ -29977,7 +30049,7 @@ DES.prototype._final = function () {
   return Buffer.from(this._des.final())
 }
 
-},{"cipher-base":125,"des.js":136,"inherits":217,"safe-buffer":341}],109:[function(require,module,exports){
+},{"cipher-base":125,"des.js":136,"inherits":217,"safe-buffer":343}],109:[function(require,module,exports){
 exports['des-ecb'] = {
   key: 8,
   iv: 0
@@ -30047,7 +30119,7 @@ function getr(priv) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"bn.js":87,"buffer":122,"randombytes":307}],111:[function(require,module,exports){
+},{"bn.js":87,"buffer":122,"randombytes":309}],111:[function(require,module,exports){
 module.exports = require('./browser/algorithms.json')
 
 },{"./browser/algorithms.json":112}],112:[function(require,module,exports){
@@ -30309,7 +30381,7 @@ module.exports = {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./algorithms.json":112,"./sign":115,"./verify":116,"buffer":122,"create-hash":130,"inherits":217,"stream":377}],115:[function(require,module,exports){
+},{"./algorithms.json":112,"./sign":115,"./verify":116,"buffer":122,"create-hash":130,"inherits":217,"stream":379}],115:[function(require,module,exports){
 (function (Buffer){
 // much of this based on https://github.com/indutny/self-signed/blob/gh-pages/lib/rsa.js
 var createHmac = require('create-hmac')
@@ -30458,7 +30530,7 @@ module.exports.getKey = getKey
 module.exports.makeKey = makeKey
 
 }).call(this,require("buffer").Buffer)
-},{"./curves.json":113,"bn.js":87,"browserify-rsa":110,"buffer":122,"create-hmac":132,"elliptic":149,"parse-asn1":273}],116:[function(require,module,exports){
+},{"./curves.json":113,"bn.js":87,"browserify-rsa":110,"buffer":122,"create-hmac":132,"elliptic":149,"parse-asn1":275}],116:[function(require,module,exports){
 (function (Buffer){
 // much of this based on https://github.com/indutny/self-signed/blob/gh-pages/lib/rsa.js
 var BN = require('bn.js')
@@ -30545,7 +30617,7 @@ function checkValue (b, q) {
 module.exports = verify
 
 }).call(this,require("buffer").Buffer)
-},{"./curves.json":113,"bn.js":87,"buffer":122,"elliptic":149,"parse-asn1":273}],117:[function(require,module,exports){
+},{"./curves.json":113,"bn.js":87,"buffer":122,"elliptic":149,"parse-asn1":275}],117:[function(require,module,exports){
 (function (process,Buffer){
 'use strict';
 /* eslint camelcase: "off" */
@@ -30957,7 +31029,7 @@ Zlib.prototype._reset = function () {
 
 exports.Zlib = Zlib;
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"_process":282,"assert":77,"buffer":122,"pako/lib/zlib/constants":260,"pako/lib/zlib/deflate.js":262,"pako/lib/zlib/inflate.js":264,"pako/lib/zlib/zstream":268}],118:[function(require,module,exports){
+},{"_process":284,"assert":77,"buffer":122,"pako/lib/zlib/constants":262,"pako/lib/zlib/deflate.js":264,"pako/lib/zlib/inflate.js":266,"pako/lib/zlib/zstream":270}],118:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -31569,7 +31641,7 @@ util.inherits(DeflateRaw, Zlib);
 util.inherits(InflateRaw, Zlib);
 util.inherits(Unzip, Zlib);
 }).call(this,require('_process'))
-},{"./binding":117,"_process":282,"assert":77,"buffer":122,"stream":377,"util":399}],119:[function(require,module,exports){
+},{"./binding":117,"_process":284,"assert":77,"buffer":122,"stream":379,"util":401}],119:[function(require,module,exports){
 arguments[4][89][0].apply(exports,arguments)
 },{"dup":89}],120:[function(require,module,exports){
 (function (global){
@@ -34137,7 +34209,7 @@ CipherBase.prototype._toString = function (value, enc, fin) {
 
 module.exports = CipherBase
 
-},{"inherits":217,"safe-buffer":341,"stream":377,"string_decoder":382}],126:[function(require,module,exports){
+},{"inherits":217,"safe-buffer":343,"stream":379,"string_decoder":384}],126:[function(require,module,exports){
 (function (Buffer){
 var util = require('util');
 var Stream = require('stream').Stream;
@@ -34330,7 +34402,7 @@ CombinedStream.prototype._emitError = function(err) {
 };
 
 }).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":218,"./defer.js":127,"delayed-stream":135,"stream":377,"util":399}],127:[function(require,module,exports){
+},{"../../is-buffer/index.js":218,"./defer.js":127,"delayed-stream":135,"stream":379,"util":401}],127:[function(require,module,exports){
 (function (process,setImmediate){
 module.exports = defer;
 
@@ -34360,7 +34432,7 @@ function defer(fn)
 }
 
 }).call(this,require('_process'),require("timers").setImmediate)
-},{"_process":282,"timers":383}],128:[function(require,module,exports){
+},{"_process":284,"timers":385}],128:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -34631,7 +34703,7 @@ module.exports = function createHash (alg) {
   return new Hash(sha(alg))
 }
 
-},{"cipher-base":125,"inherits":217,"md5.js":241,"ripemd160":340,"sha.js":344}],131:[function(require,module,exports){
+},{"cipher-base":125,"inherits":217,"md5.js":241,"ripemd160":342,"sha.js":346}],131:[function(require,module,exports){
 var MD5 = require('md5.js')
 
 module.exports = function (buffer) {
@@ -34702,7 +34774,7 @@ module.exports = function createHmac (alg, key) {
   return new Hmac(alg, key)
 }
 
-},{"./legacy":133,"cipher-base":125,"create-hash/md5":131,"inherits":217,"ripemd160":340,"safe-buffer":341,"sha.js":344}],133:[function(require,module,exports){
+},{"./legacy":133,"cipher-base":125,"create-hash/md5":131,"inherits":217,"ripemd160":342,"safe-buffer":343,"sha.js":346}],133:[function(require,module,exports){
 'use strict'
 var inherits = require('inherits')
 var Buffer = require('safe-buffer').Buffer
@@ -34750,7 +34822,7 @@ Hmac.prototype._final = function () {
 }
 module.exports = Hmac
 
-},{"cipher-base":125,"inherits":217,"safe-buffer":341}],134:[function(require,module,exports){
+},{"cipher-base":125,"inherits":217,"safe-buffer":343}],134:[function(require,module,exports){
 'use strict'
 
 exports.randomBytes = exports.rng = exports.pseudoRandomBytes = exports.prng = require('randombytes')
@@ -34849,7 +34921,7 @@ exports.constants = {
   'POINT_CONVERSION_HYBRID': 6
 }
 
-},{"browserify-cipher":107,"browserify-sign":114,"browserify-sign/algos":111,"create-ecdh":129,"create-hash":130,"create-hmac":132,"diffie-hellman":142,"pbkdf2":275,"public-encrypt":293,"randombytes":307,"randomfill":308}],135:[function(require,module,exports){
+},{"browserify-cipher":107,"browserify-sign":114,"browserify-sign/algos":111,"create-ecdh":129,"create-hash":130,"create-hmac":132,"diffie-hellman":142,"pbkdf2":277,"public-encrypt":295,"randombytes":309,"randomfill":310}],135:[function(require,module,exports){
 var Stream = require('stream').Stream;
 var util = require('util');
 
@@ -34958,7 +35030,7 @@ DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
   this.emit('error', new Error(message));
 };
 
-},{"stream":377,"util":399}],136:[function(require,module,exports){
+},{"stream":379,"util":401}],136:[function(require,module,exports){
 'use strict';
 
 exports.utils = require('./des/utils');
@@ -35851,7 +35923,7 @@ function formatReturnValue(bn, enc) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./generatePrime":144,"bn.js":87,"buffer":122,"miller-rabin":242,"randombytes":307}],144:[function(require,module,exports){
+},{"./generatePrime":144,"bn.js":87,"buffer":122,"miller-rabin":242,"randombytes":309}],144:[function(require,module,exports){
 var randomBytes = require('randombytes');
 module.exports = findPrime;
 findPrime.simpleSieve = simpleSieve;
@@ -35958,7 +36030,7 @@ function findPrime(bits, gen) {
 
 }
 
-},{"bn.js":87,"miller-rabin":242,"randombytes":307}],145:[function(require,module,exports){
+},{"bn.js":87,"miller-rabin":242,"randombytes":309}],145:[function(require,module,exports){
 module.exports={
     "modp1": {
         "gen": "02",
@@ -36053,7 +36125,7 @@ exports.ECKey = function(curve, key, isPublic)
 }
 
 
-},{"./lib/ec.js":147,"./lib/sec.js":148,"crypto":134,"jsbn":222,"safer-buffer":342}],147:[function(require,module,exports){
+},{"./lib/ec.js":147,"./lib/sec.js":148,"crypto":134,"jsbn":222,"safer-buffer":344}],147:[function(require,module,exports){
 // Basic Javascript Elliptic Curve implementation
 // Ported loosely from BouncyCastle's Java EC code
 // Only Fp curves implemented for now
@@ -40645,30 +40717,36 @@ utils.intFromLE = intFromLE;
 
 },{"bn.js":87,"minimalistic-assert":246,"minimalistic-crypto-utils":247}],164:[function(require,module,exports){
 module.exports={
-  "_from": "elliptic@^6.0.0",
+  "_args": [
+    [
+      "elliptic@6.4.1",
+      "/home/eric/checkouts/shexSpec/shex.js"
+    ]
+  ],
+  "_development": true,
+  "_from": "elliptic@6.4.1",
   "_id": "elliptic@6.4.1",
   "_inBundle": false,
   "_integrity": "sha512-BsXLz5sqX8OHcsh7CqBMztyXARmGQ3LWPtGjJi6DiJHq5C/qvi9P3OqgswKSDftbu8+IoI/QDTAm2fFnQ9SZSQ==",
   "_location": "/elliptic",
   "_phantomChildren": {},
   "_requested": {
-    "type": "range",
+    "type": "version",
     "registry": true,
-    "raw": "elliptic@^6.0.0",
+    "raw": "elliptic@6.4.1",
     "name": "elliptic",
     "escapedName": "elliptic",
-    "rawSpec": "^6.0.0",
+    "rawSpec": "6.4.1",
     "saveSpec": null,
-    "fetchSpec": "^6.0.0"
+    "fetchSpec": "6.4.1"
   },
   "_requiredBy": [
     "/browserify-sign",
     "/create-ecdh"
   ],
   "_resolved": "https://registry.npmjs.org/elliptic/-/elliptic-6.4.1.tgz",
-  "_shasum": "c2d0b7776911b86722c632c3c06c60f2f819939a",
-  "_spec": "elliptic@^6.0.0",
-  "_where": "/tmp/checkouts5/shexSpec/shex.js/node_modules/browserify-sign",
+  "_spec": "6.4.1",
+  "_where": "/home/eric/checkouts/shexSpec/shex.js",
   "author": {
     "name": "Fedor Indutny",
     "email": "fedor@indutny.com"
@@ -40676,7 +40754,6 @@ module.exports={
   "bugs": {
     "url": "https://github.com/indutny/elliptic/issues"
   },
-  "bundleDependencies": false,
   "dependencies": {
     "bn.js": "^4.4.0",
     "brorand": "^1.0.1",
@@ -40686,7 +40763,6 @@ module.exports={
     "minimalistic-assert": "^1.0.0",
     "minimalistic-crypto-utils": "^1.0.0"
   },
-  "deprecated": false,
   "description": "EC cryptography",
   "devDependencies": {
     "brfs": "^1.4.3",
@@ -41708,7 +41784,7 @@ module.exports={
 
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"_process":282,"timers":383}],166:[function(require,module,exports){
+},{"_process":284,"timers":385}],166:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -42280,7 +42356,7 @@ function EVP_BytesToKey (password, salt, keyBits, ivLen) {
 
 module.exports = EVP_BytesToKey
 
-},{"md5.js":241,"safe-buffer":341}],168:[function(require,module,exports){
+},{"md5.js":241,"safe-buffer":343}],168:[function(require,module,exports){
 'use strict';
 
 var hasOwn = Object.prototype.hasOwnProperty;
@@ -42586,7 +42662,7 @@ function dumpException(ex)
 }
 
 }).call(this,require('_process'))
-},{"_process":282,"assert":77,"util":399}],170:[function(require,module,exports){
+},{"_process":284,"assert":77,"util":401}],170:[function(require,module,exports){
 'use strict';
 
 var isArray = Array.isArray;
@@ -42844,7 +42920,7 @@ function createConnectionSSL (port, host, options) {
   return tls.connect(options);
 }
 
-},{"http":378,"https":215,"net":119,"tls":119,"util":399}],173:[function(require,module,exports){
+},{"http":380,"https":215,"net":119,"tls":119,"util":401}],173:[function(require,module,exports){
 /* eslint-env browser */
 module.exports = typeof self == 'object' ? self.FormData : window.FormData;
 
@@ -43702,7 +43778,7 @@ HashBase.prototype._digest = function () {
 
 module.exports = HashBase
 
-},{"inherits":217,"safe-buffer":341,"stream":377}],196:[function(require,module,exports){
+},{"inherits":217,"safe-buffer":343,"stream":379}],196:[function(require,module,exports){
 var hash = exports;
 
 hash.utils = require('./hash/utils');
@@ -44970,7 +45046,7 @@ var HierarchyClosure = (function () {
         updateClosure(children, parents, child, parent)
         updateClosure(parents, children, parent, child)
         function updateClosure (container, members, near, far) {
-          container[far] = container[far].concat(near, container[near])
+          container[far] = container[far].concat(near, container[near]);
           container[near].forEach(
             n => (members[n] = members[n].concat(far, members[far]))
           )
@@ -45469,7 +45545,7 @@ module.exports = {
 
 };
 
-},{"./utils":213,"assert-plus":76,"util":399}],212:[function(require,module,exports){
+},{"./utils":213,"assert-plus":76,"util":401}],212:[function(require,module,exports){
 (function (Buffer){
 // Copyright 2012 Joyent, Inc.  All rights reserved.
 
@@ -45874,7 +45950,7 @@ module.exports = {
 };
 
 }).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":218,"./utils":213,"assert-plus":76,"crypto":134,"http":378,"jsprim":228,"sshpk":370,"util":399}],213:[function(require,module,exports){
+},{"../../is-buffer/index.js":218,"./utils":213,"assert-plus":76,"crypto":134,"http":380,"jsprim":228,"sshpk":372,"util":401}],213:[function(require,module,exports){
 // Copyright 2012 Joyent, Inc.  All rights reserved.
 
 var assert = require('assert-plus');
@@ -45988,7 +46064,7 @@ module.exports = {
   }
 };
 
-},{"assert-plus":76,"sshpk":370,"util":399}],214:[function(require,module,exports){
+},{"assert-plus":76,"sshpk":372,"util":401}],214:[function(require,module,exports){
 (function (Buffer){
 // Copyright 2015 Joyent, Inc.
 
@@ -46080,7 +46156,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"./utils":213,"assert-plus":76,"buffer":122,"crypto":134,"sshpk":370}],215:[function(require,module,exports){
+},{"./utils":213,"assert-plus":76,"buffer":122,"crypto":134,"sshpk":372}],215:[function(require,module,exports){
 var http = require('http')
 var url = require('url')
 
@@ -46113,7 +46189,7 @@ function validateParams (params) {
   return params
 }
 
-},{"http":378,"url":395}],216:[function(require,module,exports){
+},{"http":380,"url":397}],216:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -46303,7 +46379,7 @@ module.exports.isReadable = isReadable
 module.exports.isWritable = isWritable
 module.exports.isDuplex   = isDuplex
 
-},{"stream":377}],222:[function(require,module,exports){
+},{"stream":379}],222:[function(require,module,exports){
 (function(){
 
     // Copyright (c) 2005  Tom Wu
@@ -56254,7 +56330,7 @@ return factory;
 })();
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate,arguments[3],arguments[4],arguments[5],arguments[6],"/node_modules/jsonld/js")
-},{"_process":282,"crypto":226,"es6-promise":165,"http":226,"jsonld-request":226,"pkginfo":226,"request":226,"timers":383,"util":226,"xmldom":226}],228:[function(require,module,exports){
+},{"_process":284,"crypto":226,"es6-promise":165,"http":226,"jsonld-request":226,"pkginfo":226,"request":226,"timers":385,"util":226,"xmldom":226}],228:[function(require,module,exports){
 /*
  * lib/jsprim.js: utilities for primitive JavaScript types
  */
@@ -56991,7 +57067,7 @@ function mergeObjects(provided, overrides, defaults)
 	return (rv);
 }
 
-},{"assert-plus":76,"extsprintf":169,"json-schema":224,"util":399,"verror":403}],229:[function(require,module,exports){
+},{"assert-plus":76,"extsprintf":169,"json-schema":224,"util":401,"verror":405}],229:[function(require,module,exports){
 var root = require('./_root');
 
 /** Built-in value references. */
@@ -57455,7 +57531,7 @@ function fnI (a, b, c, d, m, k, s) {
 
 module.exports = MD5
 
-},{"hash-base":195,"inherits":217,"safe-buffer":341}],242:[function(require,module,exports){
+},{"hash-base":195,"inherits":217,"safe-buffer":343}],242:[function(require,module,exports){
 var bn = require('bn.js');
 var brorand = require('brorand');
 
@@ -65465,7 +65541,7 @@ function populateMaps (extensions, types) {
   })
 }
 
-},{"mime-db":244,"path":274}],246:[function(require,module,exports){
+},{"mime-db":244,"path":276}],246:[function(require,module,exports){
 module.exports = assert;
 
 function assert(val, msg) {
@@ -65539,12 +65615,8 @@ utils.encode = function encode(arr, enc) {
 };
 
 },{}],248:[function(require,module,exports){
-// Replace local require by a lazy loader
-var globalRequire = require;
-require = function () {};
-
-// Expose submodules
-var exports = module.exports = {
+module.exports = {
+  DataFactory:  require('./lib/N3DataFactory'),
   Lexer:        require('./lib/N3Lexer'),
   Parser:       require('./lib/N3Parser'),
   Writer:       require('./lib/N3Writer'),
@@ -65554,21 +65626,389 @@ var exports = module.exports = {
   Util:         require('./lib/N3Util'),
 };
 
-// Load submodules on first access
-Object.keys(exports).forEach(function (submodule) {
-  Object.defineProperty(exports, submodule, {
-    configurable: true,
-    enumerable: true,
-    get: function () {
-      delete exports[submodule];
-      return exports[submodule] = globalRequire('./lib/N3' + submodule);
-    },
+},{"./lib/N3DataFactory":250,"./lib/N3Lexer":251,"./lib/N3Parser":252,"./lib/N3Store":253,"./lib/N3StreamParser":254,"./lib/N3StreamWriter":255,"./lib/N3Util":256,"./lib/N3Writer":257}],249:[function(require,module,exports){
+var RDF  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+    XSD  = 'http://www.w3.org/2001/XMLSchema#',
+    SWAP = 'http://www.w3.org/2000/10/swap/';
+
+module.exports = {
+  xsd: {
+    decimal: XSD + 'decimal',
+    boolean: XSD + 'boolean',
+    double:  XSD + 'double',
+    integer: XSD + 'integer',
+    string:  XSD + 'string',
+  },
+  rdf: {
+    type:       RDF + 'type',
+    nil:        RDF + 'nil',
+    first:      RDF + 'first',
+    rest:       RDF + 'rest',
+    langString: RDF + 'langString',
+  },
+  owl: {
+    sameAs: 'http://www.w3.org/2002/07/owl#sameAs',
+  },
+  r: {
+    forSome: SWAP + 'reify#forSome',
+    forAll:  SWAP + 'reify#forAll',
+  },
+  log: {
+    implies: SWAP + 'log#implies',
+  },
+};
+
+},{}],250:[function(require,module,exports){
+// N3.js implementations of the RDF/JS core data types
+// See https://github.com/rdfjs/representation-task-force/blob/master/interface-spec.md
+
+var namespaces = require('./IRIs');
+var rdf = namespaces.rdf,
+    xsd = namespaces.xsd;
+
+var DataFactory, DEFAULTGRAPH;
+
+var _blankNodeCounter = 0;
+
+// ## Term constructor
+function Term(id) {
+  if (!(this instanceof Term))
+    return new Term(id);
+  this.id = id;
+}
+// ### Makes this class a subclass of the given type
+Term.subclass = function subclass(Type, name) {
+  Type.prototype = Object.create(this.prototype, {
+    constructor: { value: Type },
+    termType:    { value: name || Type.name },
   });
+  Type.subclass = subclass;
+};
+
+// ### Returns whether this object represents the same term as the other
+Term.prototype.equals = function (other) {
+  // If both terms were created by this library,
+  // equality can be computed through ids
+  if (other instanceof Term)
+    return this.id === other.id;
+  // Otherwise, compare term type and value
+  return !!other && this.termType === other.termType &&
+                    this.value    === other.value;
+};
+
+// ### Returns a plain object representation of this term
+Term.prototype.toJSON = function () {
+  return {
+    termType: this.termType,
+    value:    this.value,
+  };
+};
+
+// ### Constructs a term from the given internal string ID
+function fromId(id, factory) {
+  factory = factory || DataFactory;
+
+  // Falsy value or empty string indicate the default graph
+  if (!id)
+    return factory.defaultGraph();
+
+  // Identify the term type based on the first character
+  switch (id[0]) {
+  case '_': return factory.blankNode(id.substr(2));
+  case '?': return factory.variable(id.substr(1));
+  case '"':
+    // Shortcut for internal literals
+    if (factory === DataFactory)
+      return new Literal(id);
+    // Literal without datatype or language
+    if (id[id.length - 1] === '"')
+      return factory.literal(id.substr(1, id.length - 2));
+    // Literal with datatype or language
+    var endPos = id.lastIndexOf('"', id.length - 1);
+    return factory.literal(id.substr(1, endPos - 1),
+            id[endPos + 1] === '@' ? id.substr(endPos + 2)
+                                   : factory.namedNode(id.substr(endPos + 3)));
+  default:  return factory.namedNode(id);
+  }
+}
+
+// ### Constructs an internal string ID from the given term or ID string
+function toId(term) {
+  if (typeof term === 'string')
+    return term;
+  if (term instanceof Term)
+    return term.id;
+  if (!term)
+    return DEFAULTGRAPH.value;
+
+  // Term instantiated with another library
+  switch (term.termType) {
+  case 'NamedNode':    return term.value;
+  case 'BlankNode':    return '_:' + term.value;
+  case 'Variable':     return '?' + term.value;
+  case 'DefaultGraph': return '';
+  case 'Literal':      return '"' + term.value + '"' +
+    (term.language ? '@' + term.language :
+      (term.datatype && term.datatype.value !== xsd.string ? '^^' + term.datatype.value : ''));
+  default: throw new Error('Unexpected termType: ' + term.termType);
+  }
+}
+
+// ## NamedNode constructor
+function NamedNode(iri) {
+  if (!(this instanceof NamedNode))
+    return new NamedNode(iri);
+  this.id = iri;
+}
+Term.subclass(NamedNode, 'NamedNode');
+
+// ### The IRI of this named node
+Object.defineProperty(NamedNode.prototype, 'value', {
+  get: function () { return this.id; },
 });
 
-},{"./lib/N3Lexer":249,"./lib/N3Parser":250,"./lib/N3Store":251,"./lib/N3StreamParser":252,"./lib/N3StreamWriter":253,"./lib/N3Util":254,"./lib/N3Writer":255}],249:[function(require,module,exports){
-(function (setImmediate){
+
+// ## BlankNode constructor
+function BlankNode(name) {
+  if (!(this instanceof BlankNode))
+    return new BlankNode(name);
+  this.id = '_:' + name;
+}
+Term.subclass(BlankNode, 'BlankNode');
+
+// ### The name of this blank node
+Object.defineProperty(BlankNode.prototype, 'value', {
+  get: function () { return this.id.substr(2); },
+});
+
+
+// ## Variable constructor
+function Variable(name) {
+  if (!(this instanceof Variable))
+    return new Variable(name);
+  this.id = '?' + name;
+}
+Term.subclass(Variable, 'Variable');
+
+// ### The name of this variable
+Object.defineProperty(Variable.prototype, 'value', {
+  get: function () { return this.id.substr(1); },
+});
+
+
+// ## Literal constructor
+function Literal(id) {
+  if (!(this instanceof Literal))
+    return new Literal(id);
+  this.id = id;
+}
+Term.subclass(Literal, 'Literal');
+
+// ### The text value of this literal
+Object.defineProperty(Literal.prototype, 'value', {
+  get: function () {
+    return this.id.substring(1, this.id.lastIndexOf('"'));
+  },
+});
+
+// ### The language of this literal
+Object.defineProperty(Literal.prototype, 'language', {
+  get: function () {
+    // Find the last quotation mark (e.g., '"abc"@en-us')
+    var id = this.id, atPos = id.lastIndexOf('"') + 1;
+    // If "@" it follows, return the remaining substring; empty otherwise
+    return atPos < id.length && id[atPos++] === '@' ? id.substr(atPos).toLowerCase() : '';
+  },
+});
+
+// ### The datatype IRI of this literal
+Object.defineProperty(Literal.prototype, 'datatype', {
+  get: function () {
+    return new NamedNode(this.datatypeString);
+  },
+});
+
+// ### The datatype string of this literal
+Object.defineProperty(Literal.prototype, 'datatypeString', {
+  get: function () {
+    // Find the last quotation mark (e.g., '"abc"^^http://ex.org/types#t')
+    var id = this.id, dtPos = id.lastIndexOf('"') + 1, ch;
+    // If "^" it follows, return the remaining substring
+    return dtPos < id.length && (ch = id[dtPos]) === '^' ? id.substr(dtPos + 2) :
+           // If "@" follows, return rdf:langString; xsd:string otherwise
+           (ch !== '@' ? xsd.string : rdf.langString);
+  },
+});
+
+// ### Returns whether this object represents the same term as the other
+Literal.prototype.equals = function (other) {
+  // If both literals were created by this library,
+  // equality can be computed through ids
+  if (other instanceof Literal)
+    return this.id === other.id;
+  // Otherwise, compare term type, value, language, and datatype
+  return !!other && !!other.datatype &&
+                    this.termType === other.termType &&
+                    this.value    === other.value    &&
+                    this.language === other.language &&
+                    this.datatype.value === other.datatype.value;
+};
+
+// ### Returns a plain object representation of this term
+Literal.prototype.toJSON = function () {
+  return {
+    termType: this.termType,
+    value:    this.value,
+    language: this.language,
+    datatype: { termType: 'NamedNode', value: this.datatypeString },
+  };
+};
+
+
+// ## DefaultGraph singleton
+function DefaultGraph() {
+  return DEFAULTGRAPH || this;
+}
+Term.subclass(DefaultGraph, 'DefaultGraph');
+
+// Initialize singleton
+DEFAULTGRAPH = new DefaultGraph();
+DEFAULTGRAPH.id = '';
+
+// ### The empty string
+Object.defineProperty(DefaultGraph.prototype, 'value', { value: '' });
+
+// ### Returns whether this object represents the same term as the other
+DefaultGraph.prototype.equals = function (other) {
+  // If both terms were created by this library,
+  // equality can be computed through strict equality;
+  // otherwise, compare term types.
+  return (this === other) || (!!other && (this.termType === other.termType));
+};
+
+
+// ## Quad constructor
+function Quad(subject, predicate, object, graph) {
+  if (!(this instanceof Quad))
+    return new Quad(subject, predicate, object, graph);
+  this.subject   = subject;
+  this.predicate = predicate;
+  this.object    = object;
+  this.graph     = graph || DEFAULTGRAPH;
+}
+
+// ### Returns a plain object representation of this quad
+Quad.prototype.toJSON = function () {
+  return {
+    subject:   this.subject.toJSON(),
+    predicate: this.predicate.toJSON(),
+    object:    this.object.toJSON(),
+    graph:     this.graph.toJSON(),
+  };
+};
+
+// ### Returns whether this object represents the same quad as the other
+Quad.prototype.equals = function (other) {
+  return !!other && this.subject.equals(other.subject)     &&
+                    this.predicate.equals(other.predicate) &&
+                    this.object.equals(other.object)       &&
+                    this.graph.equals(other.graph);
+};
+
+
+// ## DataFactory functions
+
+// ### Creates an IRI
+function namedNode(iri) {
+  return new NamedNode(iri);
+}
+
+// ### Creates a blank node
+function blankNode(name) {
+  if (!name)
+    name = 'n3-' + _blankNodeCounter++;
+  return new BlankNode(name);
+}
+
+// ### Creates a literal
+function literal(value, languageOrDataType) {
+  // Create a language-tagged string
+  if (typeof languageOrDataType === 'string')
+    return new Literal('"' + value + '"@' + languageOrDataType.toLowerCase());
+
+  // Create a datatyped literal
+  var datatype = languageOrDataType && languageOrDataType.value || '';
+  if (!datatype) {
+    switch (typeof value) {
+    // Convert a boolean
+    case 'boolean':
+      datatype = xsd.boolean;
+      break;
+    // Convert an integer or double
+    case 'number':
+      if (Number.isFinite(value))
+        datatype = Number.isInteger(value) ? xsd.integer : xsd.double;
+      else {
+        datatype = xsd.double;
+        if (!Number.isNaN(value))
+          value = value > 0 ? 'INF' : '-INF';
+      }
+      break;
+    // No datatype, so convert a plain string
+    default:
+      return new Literal('"' + value + '"');
+    }
+  }
+  return new Literal('"' + value + '"^^' + datatype);
+}
+
+// ### Creates a variable
+function variable(name) {
+  return new Variable(name);
+}
+
+// ### Returns the default graph
+function defaultGraph() {
+  return DEFAULTGRAPH;
+}
+
+// ### Creates a quad
+function quad(subject, predicate, object, graph) {
+  return new Quad(subject, predicate, object, graph);
+}
+
+
+// ## Module exports
+module.exports = DataFactory = {
+  // ### Public factory functions
+  namedNode: namedNode,
+  blankNode: blankNode,
+  variable:  variable,
+  literal:   literal,
+  defaultGraph: defaultGraph,
+  quad:      quad,
+  triple:    quad,
+
+  // ### Internal datatype constructors
+  internal: {
+    Term:      Term,
+    NamedNode: NamedNode,
+    BlankNode: BlankNode,
+    Variable:  Variable,
+    Literal:   Literal,
+    DefaultGraph: DefaultGraph,
+    Quad:      Quad,
+    Triple:    Quad,
+    fromId:    fromId,
+    toId:      toId,
+  },
+};
+
+},{"./IRIs":249}],251:[function(require,module,exports){
+(function (Buffer,setImmediate){
 // **N3Lexer** tokenizes N3 documents.
+var xsd = require('./IRIs').xsd;
+
 var fromCharCode = String.fromCharCode;
 var immediately = typeof setImmediate === 'function' ? setImmediate :
                   function setImmediate(func) { setTimeout(func, 0); };
@@ -65585,6 +66025,20 @@ var escapeReplacements = {
 };
 var illegalIriChars = /[\x00-\x20<>\\"\{\}\|\^\`]/;
 
+var lineModeRegExps = {
+  _iri: true,
+  _unescapedIri: true,
+  _unescapedQuote: true,
+  _singleQuote: true,
+  _langcode: true,
+  _blank: true,
+  _newline: true,
+  _comment: true,
+  _whitespace: true,
+  _endOfFile: true,
+};
+var invalidRegExp = /$0^/;
+
 // ## Constructor
 function N3Lexer(options) {
   if (!(this instanceof N3Lexer))
@@ -65592,24 +66046,19 @@ function N3Lexer(options) {
   options = options || {};
 
   // In line mode (N-Triples or N-Quads), only simple features may be parsed
-  if (options.lineMode) {
+  if (this._lineMode = !!options.lineMode) {
+    this._n3Mode = false;
     // Don't tokenize special literals
-    this._tripleQuotedString = this._number = this._boolean = /$0^/;
-    // Swap the tokenize method for a restricted version
-    var self = this;
-    this._tokenize = this.tokenize;
-    this.tokenize = function (input, callback) {
-      this._tokenize(input, function (error, token) {
-        if (!error && /^(?:IRI|prefixed|literal|langcode|type|\.|eof)$/.test(token.type))
-          callback && callback(error, token);
-        else
-          callback && callback(error || self._syntaxError(token.type, callback = null));
-      });
-    };
+    for (var key in this) {
+      if (!(key in lineModeRegExps) && this[key] instanceof RegExp)
+        this[key] = invalidRegExp;
+    }
   }
-  // Enable N3 functionality by default
-  this._n3Mode = options.n3 !== false;
-  // Disable comment tokens by default
+  // When not in line mode, enable N3 functionality by default
+  else {
+    this._n3Mode = options.n3 !== false;
+  }
+  // Don't output comment tokens by default
   this._comments = !!options.comments;
 }
 
@@ -65619,17 +66068,20 @@ N3Lexer.prototype = {
 
   _iri: /^<((?:[^ <>{}\\]|\\[uU])+)>[ \t]*/, // IRI with escape sequences; needs sanity check after unescaping
   _unescapedIri: /^<([^\x00-\x20<>\\"\{\}\|\^\`]*)>[ \t]*/, // IRI without escape sequences; no unescaping
-  _unescapedString: /^"[^"\\]+"(?=[^"\\])/, // non-empty string without escape sequences
-  _singleQuotedString: /^"[^"\\]*(?:\\.[^"\\]*)*"(?=[^"\\])|^'[^'\\]*(?:\\.[^'\\]*)*'(?=[^'\\])/,
-  _tripleQuotedString: /^""("[^"\\]*(?:(?:\\.|"(?!""))[^"\\]*)*")""|^''('[^'\\]*(?:(?:\\.|'(?!''))[^'\\]*)*')''/,
+  _unescapedQuote: /^"([^"\\\r\n]+)"/, // non-empty string without escape sequences
+  _unescapedApos:  /^'([^'\\\r\n]+)'/,
+  _singleQuote: /^"((?:[^"\\\r\n]|\\.)*)"(?=[^"])/,
+  _singleApos:  /^'((?:[^'\\\r\n]|\\.)*)'(?=[^'])/,
+  _tripleQuote: /^"""([^"\\]*(?:(?:\\.|"(?!""))[^"\\]*)*)"""/,
+  _tripleApos:  /^'''([^'\\]*(?:(?:\\.|'(?!''))[^'\\]*)*)'''/,
   _langcode: /^@([a-z]+(?:-[a-z0-9]+)*)(?=[^a-z0-9\-])/i,
   _prefix: /^((?:[A-Za-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:\.?[\-0-9A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)?:(?=[#\s<])/,
   _prefixed: /^((?:[A-Za-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:\.?[\-0-9A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)?:((?:(?:[0-:A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff]|%[0-9a-fA-F]{2}|\\[!#-\/;=?\-@_~])(?:(?:[\.\-0-:A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff]|%[0-9a-fA-F]{2}|\\[!#-\/;=?\-@_~])*(?:[\-0-:A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff]|%[0-9a-fA-F]{2}|\\[!#-\/;=?\-@_~]))?)?)(?:[ \t]+|(?=\.?[,;!\^\s#()\[\]\{\}"'<]))/,
   _variable: /^\?(?:(?:[A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:[\-0-:A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)(?=[.,;!\^\s#()\[\]\{\}"'<])/,
   _blank: /^_:((?:[0-9A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])(?:\.?[\-0-9A-Z_a-z\xb7\xc0-\xd6\xd8-\xf6\xf8-\u037d\u037f-\u1fff\u200c\u200d\u203f\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]|[\ud800-\udb7f][\udc00-\udfff])*)(?:[ \t]+|(?=\.?[,;:\s#()\[\]\{\}"'<]))/,
-  _number: /^[\-+]?(?:\d+\.?\d*([eE](?:[\-\+])?\d+)|\d*\.?\d+)(?=[.,;:\s#()\[\]\{\}"'<])/,
+  _number: /^[\-+]?(?:\d+\.?\d*([eE](?:[\-\+])?\d+)|\d*\.?\d+)(?=\.?[,;:\s#()\[\]\{\}"'<])/,
   _boolean: /^(?:true|false)(?=[.,;\s#()\[\]\{\}"'<])/,
-  _keyword: /^@[a-z]+(?=[\s#<])/i,
+  _keyword: /^@[a-z]+(?=[\s#<:])/i,
   _sparqlKeyword: /^(?:PREFIX|BASE|GRAPH)(?=[\s#<])/i,
   _shortPredicates: /^a(?=\s+|<)/,
   _newline: /^[ \t]*(?:#[^\n\r]*)?(?:\r\n|\n|\r)[ \t]*/,
@@ -65672,7 +66124,7 @@ N3Lexer.prototype = {
 
       // Look for specific token types based on the first character
       var line = this._line, type = '', value = '', prefix = '',
-          firstChar = input[0], match = null, matchLength = 0, unescaped, inconclusive = false;
+          firstChar = input[0], match = null, matchLength = 0, inconclusive = false;
       switch (firstChar) {
       case '^':
         // We need at least 3 tokens lookahead to distinguish ^^<IRI> and ^^pre:fixed
@@ -65680,7 +66132,7 @@ N3Lexer.prototype = {
           break;
         // Try to match a type
         else if (input[1] === '^') {
-          this._prevTokenType = '^^';
+          this._previousMarker = '^^';
           // Move to type IRI or prefixed name
           input = input.substr(2);
           if (input[0] !== '<') {
@@ -65703,19 +66155,19 @@ N3Lexer.prototype = {
           type = 'IRI', value = match[1];
         // Try to find a full IRI with escape sequences
         else if (match = this._iri.exec(input)) {
-          unescaped = this._unescape(match[1]);
-          if (unescaped === null || illegalIriChars.test(unescaped))
+          value = this._unescape(match[1]);
+          if (value === null || illegalIriChars.test(value))
             return reportSyntaxError(this);
-          type = 'IRI', value = unescaped;
+          type = 'IRI';
         }
         // Try to find a backwards implication arrow
         else if (this._n3Mode && input.length > 1 && input[1] === '=')
-          type = 'inverse', matchLength = 2, value = 'http://www.w3.org/2000/10/swap/log#implies';
+          type = 'inverse', matchLength = 2, value = '>';
         break;
 
       case '_':
         // Try to find a blank node. Since it can contain (but not end with) a dot,
-        // we always need a non-dot character before deciding it is a prefixed name.
+        // we always need a non-dot character before deciding it is a blank node.
         // Therefore, try inserting a space if we're at the end of the input.
         if ((match = this._blank.exec(input)) ||
             inputFinished && (match = this._blank.exec(input + ' ')))
@@ -65723,27 +66175,49 @@ N3Lexer.prototype = {
         break;
 
       case '"':
+        // Try to find a literal without escape sequences
+        if (match = this._unescapedQuote.exec(input))
+          value = match[1];
+        // Before attempting more complex string patterns, try to detect a closing quote
+        else if (input.indexOf('"', 1) > 0) {
+          // Try to find any other literal wrapped in a pair of quotes
+          if (match = this._singleQuote.exec(input))
+            value = this._unescape(match[1]);
+          // Try to find a literal wrapped in three pairs of quotes
+          else if (match = this._tripleQuote.exec(input)) {
+            value = match[1];
+            // Advance line counter
+            this._line += value.split(/\r\n|\r|\n/).length - 1;
+            value = this._unescape(value);
+          }
+          if (value === null)
+            return reportSyntaxError(this);
+        }
+        if (match !== null)
+          type = 'literal';
+        break;
+
       case "'":
-        // Try to find a non-empty double-quoted literal without escape sequences
-        if (match = this._unescapedString.exec(input))
-          type = 'literal', value = match[0];
-        // Try to find any other literal wrapped in a pair of single or double quotes
-        else if (match = this._singleQuotedString.exec(input)) {
-          unescaped = this._unescape(match[0]);
-          if (unescaped === null)
+        // Try to find a literal without escape sequences
+        if (match = this._unescapedApos.exec(input))
+          value = match[1];
+        // Before attempting more complex string patterns, try to detect a closing apostrophe
+        else if (input.indexOf("'", 1) > 0) {
+          // Try to find any other literal wrapped in a pair of apostrophes
+          if (match = this._singleApos.exec(input))
+            value = this._unescape(match[1]);
+          // Try to find a literal wrapped in three pairs of apostrophes
+          else if (match = this._tripleApos.exec(input)) {
+            value = match[1];
+            // Advance line counter
+            this._line += value.split(/\r\n|\r|\n/).length - 1;
+            value = this._unescape(value);
+          }
+          if (value === null)
             return reportSyntaxError(this);
-          type = 'literal', value = unescaped.replace(/^'|'$/g, '"');
         }
-        // Try to find a literal wrapped in three pairs of single or double quotes
-        else if (match = this._tripleQuotedString.exec(input)) {
-          unescaped = match[1] || match[2];
-          // Count the newlines and advance line counter
-          this._line += unescaped.split(/\r\n|\r|\n/).length - 1;
-          unescaped = this._unescape(unescaped);
-          if (unescaped === null)
-            return reportSyntaxError(this);
-          type = 'literal', value = unescaped.replace(/^'|'$/g, '"');
-        }
+        if (match !== null)
+          type = 'literal';
         break;
 
       case '?':
@@ -65754,7 +66228,7 @@ N3Lexer.prototype = {
 
       case '@':
         // Try to find a language code
-        if (this._prevTokenType === 'literal' && (match = this._langcode.exec(input)))
+        if (this._previousMarker === 'literal' && (match = this._langcode.exec(input)))
           type = 'langcode', value = match[1];
         // Try to find a keyword
         else if (match = this._keyword.exec(input))
@@ -65782,11 +66256,14 @@ N3Lexer.prototype = {
       case '9':
       case '+':
       case '-':
-        // Try to find a number
-        if (match = this._number.exec(input)) {
-          type = 'literal';
-          value = '"' + match[0] + '"^^http://www.w3.org/2001/XMLSchema#' +
-                  (match[1] ? 'double' : (/^[+\-]?\d+$/.test(match[0]) ? 'integer' : 'decimal'));
+        // Try to find a number. Since it can contain (but not end with) a dot,
+        // we always need a non-dot character before deciding it is a number.
+        // Therefore, try inserting a space if we're at the end of the input.
+        if (match = this._number.exec(input) ||
+            inputFinished && (match = this._number.exec(input + ' '))) {
+          type = 'literal', value = match[0];
+          prefix = (match[1] ? xsd.double :
+                    (/^[+\-]?\d+$/.test(match[0]) ? xsd.integer : xsd.decimal));
         }
         break;
 
@@ -65807,7 +66284,7 @@ N3Lexer.prototype = {
       case 't':
         // Try to match a boolean
         if (match = this._boolean.exec(input))
-          type = 'literal', value = '"' + match[0] + '"^^http://www.w3.org/2001/XMLSchema#boolean';
+          type = 'literal', value = match[0], prefix = xsd.boolean;
         else
           inconclusive = true;
         break;
@@ -65815,7 +66292,7 @@ N3Lexer.prototype = {
       case 'a':
         // Try to find an abbreviated predicate
         if (match = this._shortPredicates.exec(input))
-          type = 'abbreviation', value = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+          type = 'abbreviation', value = 'a';
         else
           inconclusive = true;
         break;
@@ -65825,9 +66302,9 @@ N3Lexer.prototype = {
         if (this._n3Mode && input.length > 1) {
           type = 'abbreviation';
           if (input[1] !== '>')
-            matchLength = 1, value = 'http://www.w3.org/2002/07/owl#sameAs';
+            matchLength = 1, value = '=';
           else
-            matchLength = 2, value = 'http://www.w3.org/2000/10/swap/log#implies';
+            matchLength = 2, value = '>';
         }
         break;
 
@@ -65842,9 +66319,10 @@ N3Lexer.prototype = {
       case ')':
       case '{':
       case '}':
-        // The next token is punctuation
-        matchLength = 1;
-        type = firstChar;
+        if (!this._lineMode) {
+          matchLength = 1;
+          type = firstChar;
+        }
         break;
 
       default:
@@ -65854,7 +66332,7 @@ N3Lexer.prototype = {
       // Some first characters do not allow an immediate decision, so inspect more
       if (inconclusive) {
         // Try to find a prefix
-        if ((this._prevTokenType === '@prefix' || this._prevTokenType === 'PREFIX') &&
+        if ((this._previousMarker === '@prefix' || this._previousMarker === 'PREFIX') &&
             (match = this._prefix.exec(input)))
           type = 'prefix', value = match[1] || '';
         // Try to find a prefixed name. Since it can contain (but not end with) a dot,
@@ -65866,7 +66344,7 @@ N3Lexer.prototype = {
       }
 
       // A type token is special: it can only be emitted after an IRI or prefixed name is read
-      if (this._prevTokenType === '^^') {
+      if (this._previousMarker === '^^') {
         switch (type) {
         case 'prefixed': type = 'type';    break;
         case 'IRI':      type = 'typeIRI'; break;
@@ -65886,9 +66364,10 @@ N3Lexer.prototype = {
       }
 
       // Emit the parsed token
-      callback(null, { line: line, type: type, value: value, prefix: prefix });
-      this._prevTokenType = type;
-
+      var token = { line: line, type: type, value: value, prefix: prefix };
+      callback(null, token);
+      this.previousToken = token;
+      this._previousMarker = type;
       // Advance to next part to tokenize
       input = input.substr(matchLength || match[0].length, input.length);
     }
@@ -65927,7 +66406,13 @@ N3Lexer.prototype = {
   // ### `_syntaxError` creates a syntax error for the given issue
   _syntaxError: function (issue) {
     this._input = null;
-    return new Error('Unexpected "' + issue + '" on line ' + this._line + '.');
+    var err = new Error('Unexpected "' + issue + '" on line ' + this._line + '.');
+    err.context = {
+      token: undefined,
+      line: this._line,
+      previousToken: this.previousToken,
+    };
+    return err;
   },
 
 
@@ -65956,13 +66441,26 @@ N3Lexer.prototype = {
     // Otherwise, the input must be a stream
     else {
       this._input = '';
+      this._pendingBuffer = null;
       if (typeof input.setEncoding === 'function')
         input.setEncoding('utf8');
       // Adds the data chunk to the buffer and parses as far as possible
       input.on('data', function (data) {
-        if (self._input !== null) {
-          self._input += data;
-          self._tokenizeToEnd(callback, false);
+        if (self._input !== null && data.length !== 0) {
+          // Prepend any previous pending writes
+          if (self._pendingBuffer) {
+            data = Buffer.concat([self._pendingBuffer, data]);
+            self._pendingBuffer = null;
+          }
+          // Hold if the buffer ends in an incomplete unicode sequence
+          if (data[data.length - 1] & 0x80) {
+            self._pendingBuffer = data;
+          }
+          // Otherwise, tokenize as far as possible
+          else {
+            self._input += data;
+            self._tokenizeToEnd(callback, false);
+          }
         }
       });
       // Parses until the end
@@ -65970,6 +66468,7 @@ N3Lexer.prototype = {
         if (self._input !== null)
           self._tokenizeToEnd(callback, true);
       });
+      input.on('error', callback);
     }
   },
 };
@@ -65977,21 +66476,12 @@ N3Lexer.prototype = {
 // ## Exports
 module.exports = N3Lexer;
 
-}).call(this,require("timers").setImmediate)
-},{"timers":383}],250:[function(require,module,exports){
+}).call(this,require("buffer").Buffer,require("timers").setImmediate)
+},{"./IRIs":249,"buffer":122,"timers":385}],252:[function(require,module,exports){
 // **N3Parser** parses N3 documents.
-var N3Lexer = require('./N3Lexer');
-
-var RDF_PREFIX = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-    RDF_NIL    = RDF_PREFIX + 'nil',
-    RDF_FIRST  = RDF_PREFIX + 'first',
-    RDF_REST   = RDF_PREFIX + 'rest';
-
-var QUANTIFIERS_GRAPH = 'urn:n3:quantifiers';
-
-var absoluteIRI = /^[a-z][a-z0-9+.-]*:/i,
-    schemeAuthority = /^(?:([a-z][a-z0-9+.-]*:))?(?:\/\/[^\/]*)?/i,
-    dotSegments = /(?:^|\/)\.\.?(?:$|[\/#?])/;
+var N3Lexer = require('./N3Lexer'),
+    DataFactory = require('./N3DataFactory'),
+    namespaces = require('./IRIs');
 
 // The next ID for new blank nodes
 var blankNodePrefix = 0, blankNodeCount = 0;
@@ -66005,7 +66495,8 @@ function N3Parser(options) {
 
   // Set the document IRI
   options = options || {};
-  this._setBase(options.documentIRI);
+  this._setBase(options.baseIRI);
+  options.factory && initDataFactory(this, options.factory);
 
   // Set supported features depending on the format
   var format = (typeof options.format === 'string') ?
@@ -66018,15 +66509,10 @@ function N3Parser(options) {
     this._readPredicateOrNamedGraph = this._readPredicate;
   this._supportsQuads = !(isTurtle || isTriG || isNTriples || isN3);
   // Disable relative IRIs in N-Triples or N-Quads mode
-  if (isLineMode) {
-    this._base = '';
-    this._resolveIRI = function (token) {
-      this._error('Disallowed relative IRI', token);
-      return this._callback = noop, this._subject = null;
-    };
-  }
+  if (isLineMode)
+    this._resolveRelativeIRI = function (iri) { return ''; };
   this._blankNodePrefix = typeof options.blankNodePrefix !== 'string' ? '' :
-                            '_:' + options.blankNodePrefix.replace(/^_:/, '');
+                            options.blankNodePrefix.replace(/^(?!_:)/, '_:');
   this._lexer = options.lexer || new N3Lexer({ lineMode: isLineMode, n3: isN3 });
   // Disable explicit quantifiers by default
   this._explicitQuantifiers = !!options.explicitQuantifiers;
@@ -66042,6 +66528,11 @@ N3Parser._resetBlankNodeIds = function () {
 N3Parser.prototype = {
   // ## Private methods
 
+  // ### `_blank` creates a new blank node
+  _blank: function () {
+    return this._blankNode('b' + blankNodeCount++);
+  },
+
   // ### `_setBase` sets the base IRI to resolve relative IRIs
   _setBase: function (baseIRI) {
     if (!baseIRI)
@@ -66055,7 +66546,7 @@ N3Parser.prototype = {
       this._base = baseIRI;
       this._basePath   = baseIRI.indexOf('/') < 0 ? baseIRI :
                          baseIRI.replace(/[^\/?]*(?:\?.*)?$/, '');
-      baseIRI = baseIRI.match(schemeAuthority);
+      baseIRI = baseIRI.match(/^(?:([a-z][a-z0-9+.-]*:))?(?:\/\/[^\/]*)?/i);
       this._baseRoot   = baseIRI[0];
       this._baseScheme = baseIRI[1];
     }
@@ -66078,7 +66569,7 @@ N3Parser.prototype = {
       this._inversePredicate = false;
       // In N3, blank nodes are scoped to a formula
       // (using a dot as separator, as a blank node label cannot start with it)
-      this._prefixes._ = this._graph + '.';
+      this._prefixes._ = (this._graph ? this._graph.id.substr(2) + '.' : '.');
       // Quantifiers are scoped to a formula
       this._quantified = Object.create(this._quantified);
     }
@@ -66142,43 +66633,49 @@ N3Parser.prototype = {
     // Read a relative or absolute IRI
     case 'IRI':
     case 'typeIRI':
-      value = (this._base === null || absoluteIRI.test(token.value)) ?
-              token.value : this._resolveIRI(token);
+      var iri = this._resolveIRI(token.value);
+      if (iri === '')
+        return this._error('Invalid IRI', token);
+      value = this._namedNode(iri);
       break;
-    // Read a blank node or prefixed name
+    // Read a prefixed name
     case 'type':
-    case 'blank':
     case 'prefixed':
       var prefix = this._prefixes[token.prefix];
       if (prefix === undefined)
         return this._error('Undefined prefix "' + token.prefix + ':"', token);
-      value = prefix + token.value;
+      value = this._namedNode(prefix + token.value);
+      break;
+    // Read a blank node
+    case 'blank':
+      value = this._blankNode(this._prefixes[token.prefix] + token.value);
       break;
     // Read a variable
     case 'var':
-      return token.value;
+      value = this._variable(token.value.substr(1));
+      break;
     // Everything else is not an entity
     default:
       return this._error('Expected entity but got ' + token.type, token);
     }
     // In N3 mode, replace the entity if it is quantified
-    if (!quantifier && this._n3Mode && (value in this._quantified))
-      value = this._quantified[value];
+    if (!quantifier && this._n3Mode && (value.id in this._quantified))
+      value = this._quantified[value.id];
     return value;
   },
 
-  // ### `_readSubject` reads a triple's subject
+  // ### `_readSubject` reads a quad's subject
   _readSubject: function (token) {
     this._predicate = null;
     switch (token.type) {
     case '[':
-      // Start a new triple with a new blank node as subject
+      // Start a new quad with a new blank node as subject
       this._saveContext('blank', this._graph,
-                        this._subject = '_:b' + blankNodeCount++, null, null);
+                        this._subject = this._blank(), null, null);
       return this._readBlankNodeHead;
     case '(':
       // Start a new list
-      this._saveContext('list', this._graph, RDF_NIL, null, null);
+      this._saveContext('list', this._graph, this.RDF_NIL, null, null);
       this._subject = null;
       return this._readListItem;
     case '{':
@@ -66186,20 +66683,24 @@ N3Parser.prototype = {
       if (!this._n3Mode)
         return this._error('Unexpected graph', token);
       this._saveContext('formula', this._graph,
-                        this._graph = '_:b' + blankNodeCount++, null, null);
+                        this._graph = this._blank(), null, null);
       return this._readSubject;
     case '}':
        // No subject; the graph in which we are reading is closed instead
       return this._readPunctuation(token);
     case '@forSome':
+      if (!this._n3Mode)
+        return this._error('Unexpected "@forSome"', token);
       this._subject = null;
-      this._predicate = 'http://www.w3.org/2000/10/swap/reify#forSome';
-      this._quantifiedPrefix = '_:b';
+      this._predicate = this.N3_FORSOME;
+      this._quantifier = this._blankNode;
       return this._readQuantifierList;
     case '@forAll':
+      if (!this._n3Mode)
+        return this._error('Unexpected "@forAll"', token);
       this._subject = null;
-      this._predicate = 'http://www.w3.org/2000/10/swap/reify#forAll';
-      this._quantifiedPrefix = '?b-';
+      this._predicate = this.N3_FORALL;
+      this._quantifier = this._variable;
       return this._readQuantifierList;
     default:
       // Read the subject entity
@@ -66215,14 +66716,14 @@ N3Parser.prototype = {
     return this._readPredicateOrNamedGraph;
   },
 
-  // ### `_readPredicate` reads a triple's predicate
+  // ### `_readPredicate` reads a quad's predicate
   _readPredicate: function (token) {
     var type = token.type;
     switch (type) {
     case 'inverse':
       this._inversePredicate = true;
     case 'abbreviation':
-      this._predicate = token.value;
+      this._predicate = this.ABBREVIATIONS[token.value];
       break;
     case '.':
     case ']':
@@ -66233,8 +66734,9 @@ N3Parser.prototype = {
       this._subject = null;
       return type === ']' ? this._readBlankNodeTail(token) : this._readPunctuation(token);
     case ';':
-      // Extra semicolons can be safely ignored
-      return this._readPredicate;
+      // Additional semicolons can be safely ignored
+      return this._predicate !== null ? this._readPredicate :
+             this._error('Expected predicate but got ;', token);
     case 'blank':
       if (!this._n3Mode)
         return this._error('Disallowed blank node as predicate', token);
@@ -66246,20 +66748,27 @@ N3Parser.prototype = {
     return this._readObject;
   },
 
-  // ### `_readObject` reads a triple's object
+  // ### `_readObject` reads a quad's object
   _readObject: function (token) {
     switch (token.type) {
     case 'literal':
-      this._object = token.value;
-      return this._readDataTypeOrLang;
+      // Regular literal, can still get a datatype or language
+      if (token.prefix.length === 0) {
+        this._literalValue = token.value;
+        return this._readDataTypeOrLang;
+      }
+      // Pre-datatyped string literal (prefix stores the datatype)
+      else
+        this._object = this._literal(token.value, this._namedNode(token.prefix));
+      break;
     case '[':
-      // Start a new triple with a new blank node as subject
+      // Start a new quad with a new blank node as subject
       this._saveContext('blank', this._graph, this._subject, this._predicate,
-                        this._subject = '_:b' + blankNodeCount++);
+                        this._subject = this._blank());
       return this._readBlankNodeHead;
     case '(':
       // Start a new list
-      this._saveContext('list', this._graph, this._subject, this._predicate, RDF_NIL);
+      this._saveContext('list', this._graph, this._subject, this._predicate, this.RDF_NIL);
       this._subject = null;
       return this._readListItem;
     case '{':
@@ -66267,7 +66776,7 @@ N3Parser.prototype = {
       if (!this._n3Mode)
         return this._error('Unexpected graph', token);
       this._saveContext('formula', this._graph, this._subject, this._predicate,
-                        this._graph = '_:b' + blankNodeCount++);
+                        this._graph = this._blank());
       return this._readSubject;
     default:
       // Read the object entity
@@ -66280,7 +66789,7 @@ N3Parser.prototype = {
     return this._getContextEndReader();
   },
 
-  // ### `_readPredicateOrNamedGraph` reads a triple's predicate, or a named graph
+  // ### `_readPredicateOrNamedGraph` reads a quad's predicate, or a named graph
   _readPredicateOrNamedGraph: function (token) {
     return token.type === '{' ? this._readGraph(token) : this._readPredicate(token);
   },
@@ -66311,9 +66820,9 @@ N3Parser.prototype = {
     if (token.type !== ']')
       return this._readBlankNodePunctuation(token);
 
-    // Store blank node triple
+    // Store blank node quad
     if (this._subject !== null)
-      this._triple(this._subject, this._predicate, this._object, this._graph);
+      this._emit(this._subject, this._predicate, this._object, this._graph);
 
     // Restore the parent context containing this blank node
     var empty = this._predicate === null;
@@ -66329,66 +66838,76 @@ N3Parser.prototype = {
 
   // ### `_readPredicateAfterBlank` reads a predicate after an anonymous blank node
   _readPredicateAfterBlank: function (token) {
-    // If a dot follows a blank node in top context, there is no predicate
-    if (token.type === '.' && !this._contextStack.length) {
-      this._subject = null; // cancel the current triple
+    switch (token.type) {
+    case '.':
+    case '}':
+      // No predicate is coming if the triple is terminated here
+      this._subject = null;
       return this._readPunctuation(token);
+    default:
+      return this._readPredicate(token);
     }
-    return this._readPredicate(token);
   },
 
   // ### `_readListItem` reads items from a list
   _readListItem: function (token) {
     var item = null,                      // The item of the list
         list = null,                      // The list itself
-        prevList = this._subject,         // The previous list that contains this list
+        previousList = this._subject,     // The previous list that contains this list
         stack = this._contextStack,       // The stack of parent contexts
         parent = stack[stack.length - 1], // The parent containing the current list
-        next = this._readListItem,        // The next function to execute
-        itemComplete = true;              // Whether the item has been read fully
+        next = this._readListItem;        // The next function to execute
 
     switch (token.type) {
     case '[':
-      // Stack the current list triple and start a new triple with a blank node as subject
-      this._saveContext('blank', this._graph, list = '_:b' + blankNodeCount++,
-                        RDF_FIRST, this._subject = item = '_:b' + blankNodeCount++);
+      // Stack the current list quad and start a new quad with a blank node as subject
+      this._saveContext('blank', this._graph,
+                        list = this._blank(), this.RDF_FIRST,
+                        this._subject = item = this._blank());
       next = this._readBlankNodeHead;
       break;
     case '(':
-      // Stack the current list triple and start a new list
-      this._saveContext('list', this._graph, list = '_:b' + blankNodeCount++,
-                        RDF_FIRST, RDF_NIL);
+      // Stack the current list quad and start a new list
+      this._saveContext('list', this._graph,
+                        list = this._blank(), this.RDF_FIRST, this.RDF_NIL);
       this._subject = null;
       break;
     case ')':
       // Closing the list; restore the parent context
       this._restoreContext();
-      // If this list is contained within a parent list, return the membership triple here.
+      // If this list is contained within a parent list, return the membership quad here.
       // This will be `<parent list element> rdf:first <this list>.`.
       if (stack.length !== 0 && stack[stack.length - 1].type === 'list')
-        this._triple(this._subject, this._predicate, this._object, this._graph);
+        this._emit(this._subject, this._predicate, this._object, this._graph);
       // Was this list the parent's subject?
       if (this._predicate === null) {
         // The next token is the predicate
         next = this._readPredicate;
         // No list tail if this was an empty list
-        if (this._subject === RDF_NIL)
+        if (this._subject === this.RDF_NIL)
           return next;
       }
       // The list was in the parent context's object
       else {
         next = this._getContextEndReader();
         // No list tail if this was an empty list
-        if (this._object === RDF_NIL)
+        if (this._object === this.RDF_NIL)
           return next;
       }
       // Close the list by making the head nil
-      list = RDF_NIL;
+      list = this.RDF_NIL;
       break;
     case 'literal':
-      item = token.value;
-      itemComplete = false; // Can still have a datatype or language
-      next = this._readListItemDataTypeOrLang;
+      // Regular literal, can still get a datatype or language
+      if (token.prefix.length === 0) {
+        this._literalValue = token.value;
+        next = this._readListItemDataTypeOrLang;
+      }
+      // Pre-datatyped string literal (prefix stores the datatype)
+      else {
+        item = this._literal(token.value, this._namedNode(token.prefix));
+        next = this._getContextEndReader();
+      }
       break;
     default:
       if ((item = this._readEntity(token)) === undefined)
@@ -66397,10 +66916,10 @@ N3Parser.prototype = {
 
      // Create a new blank node if no item head was assigned yet
     if (list === null)
-      this._subject = list = '_:b' + blankNodeCount++;
+      this._subject = list = this._blank();
 
     // Is this the first element of the list?
-    if (prevList === null) {
+    if (previousList === null) {
       // This list is either the subject or the object of its parent
       if (parent.predicate === null)
         parent.subject = list;
@@ -66409,61 +66928,62 @@ N3Parser.prototype = {
     }
     else {
       // Continue the previous list with the current list
-      this._triple(prevList, RDF_REST, list, this._graph);
+      this._emit(previousList, this.RDF_REST, list, this._graph);
     }
-    // Add the item's value
+    // If an item was read, add it to the list
     if (item !== null) {
       // In N3 mode, the item might be a path
       if (this._n3Mode && (token.type === 'IRI' || token.type === 'prefixed')) {
         // Create a new context to add the item's path
-        this._saveContext('item', this._graph, list, RDF_FIRST, item);
+        this._saveContext('item', this._graph, list, this.RDF_FIRST, item);
         this._subject = item, this._predicate = null;
         // _readPath will restore the context and output the item
         return this._getPathReader(this._readListItem);
       }
-      // Output the item if it is complete
-      if (itemComplete)
-        this._triple(list, RDF_FIRST, item, this._graph);
-      // Otherwise, save it for completion
-      else
-        this._object = item;
+      // Output the item
+      this._emit(list, this.RDF_FIRST, item, this._graph);
     }
     return next;
   },
 
-  // ### `_readDataTypeOrLang` reads an _optional_ data type or language
+  // ### `_readDataTypeOrLang` reads an _optional_ datatype or language
   _readDataTypeOrLang: function (token) {
     return this._completeLiteral(token, false);
   },
 
-  // ### `_readListItemDataTypeOrLang` reads an _optional_ data type or language in a list
+  // ### `_readListItemDataTypeOrLang` reads an _optional_ datatype or language in a list
   _readListItemDataTypeOrLang: function (token) {
     return this._completeLiteral(token, true);
   },
 
-  // ### `_completeLiteral` completes the object with a data type or language
+  // ### `_completeLiteral` completes a literal with an optional datatype or language
   _completeLiteral: function (token, listItem) {
-    var suffix = false;
     switch (token.type) {
-    // Add a "^^type" suffix for types (IRIs and blank nodes)
+    // Create a datatyped literal
     case 'type':
     case 'typeIRI':
-      suffix = true;
-      this._object += '^^' + this._readEntity(token);
+      var datatype = this._readEntity(token);
+      if (datatype === undefined) return; // No datatype means an error occurred
+      this._object = this._literal(this._literalValue, datatype);
+      token = null;
       break;
-    // Add an "@lang" suffix for language tags
+    // Create a language-tagged string
     case 'langcode':
-      suffix = true;
-      this._object += '@' + token.value.toLowerCase();
+      this._object = this._literal(this._literalValue, token.value);
+      token = null;
       break;
+    // Create a simple string literal
+    default:
+      this._object = this._literal(this._literalValue);
     }
     // If this literal was part of a list, write the item
     // (we could also check the context stack, but passing in a flag is faster)
     if (listItem)
-      this._triple(this._subject, RDF_FIRST, this._object, this._graph);
-    // Continue with the rest of the input
-    if (suffix)
+      this._emit(this._subject, this.RDF_FIRST, this._object, this._graph);
+    // If the token was consumed, continue with the rest of the input
+    if (token === null)
       return this._getContextEndReader();
+    // Otherwise, consume the token now
     else {
       this._readCallback = this._getContextEndReader();
       return this._readCallback(token);
@@ -66475,9 +66995,9 @@ N3Parser.prototype = {
     if (token.type !== '}')
       return this._readPunctuation(token);
 
-    // Store the last triple of the formula
+    // Store the last quad of the formula
     if (this._subject !== null)
-      this._triple(this._subject, this._predicate, this._object, this._graph);
+      this._emit(this._subject, this._predicate, this._object, this._graph);
 
     // Restore the parent context containing this formula
     this._restoreContext();
@@ -66486,7 +67006,7 @@ N3Parser.prototype = {
     return this._object === null ? this._readPredicate : this._getContextEndReader();
   },
 
-  // ### `_readPunctuation` reads punctuation between triples or triple parts
+  // ### `_readPunctuation` reads punctuation between quads or quad parts
   _readPunctuation: function (token) {
     var next, subject = this._subject, graph = this._graph,
         inversePredicate = this._inversePredicate;
@@ -66518,15 +67038,15 @@ N3Parser.prototype = {
         next = this._readQuadPunctuation;
         break;
       }
-      return this._error('Expected punctuation to follow "' + this._object + '"', token);
+      return this._error('Expected punctuation to follow "' + this._object.id + '"', token);
     }
-    // A triple has been completed now, so return it
+    // A quad has been completed now, so return it
     if (subject !== null) {
       var predicate = this._predicate, object = this._object;
       if (!inversePredicate)
-        this._triple(subject, predicate, object,  graph);
+        this._emit(subject, predicate, object,  graph);
       else
-        this._triple(object,  predicate, subject, graph);
+        this._emit(object,  predicate, subject, graph);
     }
     return next;
   },
@@ -66544,10 +67064,10 @@ N3Parser.prototype = {
       next = this._readObject;
       break;
     default:
-      return this._error('Expected punctuation to follow "' + this._object + '"', token);
+      return this._error('Expected punctuation to follow "' + this._object.id + '"', token);
     }
-    // A triple has been completed now, so return it
-    this._triple(this._subject, this._predicate, this._object, this._graph);
+    // A quad has been completed now, so return it
+    this._emit(this._subject, this._predicate, this._object, this._graph);
     return next;
   },
 
@@ -66570,18 +67090,18 @@ N3Parser.prototype = {
   _readPrefixIRI: function (token) {
     if (token.type !== 'IRI')
       return this._error('Expected IRI to follow prefix "' + this._prefix + ':"', token);
-    var prefixIRI = this._readEntity(token);
-    this._prefixes[this._prefix] = prefixIRI;
-    this._prefixCallback(this._prefix, prefixIRI);
+    var prefixNode = this._readEntity(token);
+    this._prefixes[this._prefix] = prefixNode.value;
+    this._prefixCallback(this._prefix, prefixNode);
     return this._readDeclarationPunctuation;
   },
 
   // ### `_readBaseIRI` reads the IRI of a base declaration
   _readBaseIRI: function (token) {
-    if (token.type !== 'IRI')
-      return this._error('Expected IRI to follow base declaration', token);
-    this._setBase(this._base === null || absoluteIRI.test(token.value) ?
-                  token.value : this._resolveIRI(token));
+    var iri = token.type === 'IRI' && this._resolveIRI(token.value);
+    if (!iri)
+      return this._error('Expected valid IRI to follow base declaration', token);
+    this._setBase(iri);
     return this._readDeclarationPunctuation;
   },
 
@@ -66603,7 +67123,7 @@ N3Parser.prototype = {
   _readNamedGraphBlankLabel: function (token) {
     if (token.type !== ']')
       return this._error('Invalid graph label', token);
-    this._subject = '_:b' + blankNodeCount++;
+    this._subject = this._blank();
     return this._readGraph;
   },
 
@@ -66633,19 +67153,19 @@ N3Parser.prototype = {
     }
     // Without explicit quantifiers, map entities to a quantified entity
     if (!this._explicitQuantifiers)
-      this._quantified[entity] = this._quantifiedPrefix + blankNodeCount++;
+      this._quantified[entity.id] = this._quantifier('b' + blankNodeCount++);
     // With explicit quantifiers, output the reified quantifier
     else {
       // If this is the first item, start a new quantifier list
       if (this._subject === null)
-        this._triple(this._graph || '', this._predicate,
-                     this._subject = '_:b' + blankNodeCount++, QUANTIFIERS_GRAPH);
+        this._emit(this._graph || this.DEFAULTGRAPH, this._predicate,
+                   this._subject = this._blank(), this.QUANTIFIERS_GRAPH);
       // Otherwise, continue the previous list
       else
-        this._triple(this._subject, RDF_REST,
-                     this._subject = '_:b' + blankNodeCount++, QUANTIFIERS_GRAPH);
+        this._emit(this._subject, this.RDF_REST,
+                   this._subject = this._blank(), this.QUANTIFIERS_GRAPH);
       // Output the list item
-      this._triple(this._subject, RDF_FIRST, entity, QUANTIFIERS_GRAPH);
+      this._emit(this._subject, this.RDF_FIRST, entity, this.QUANTIFIERS_GRAPH);
     }
     return this._readQuantifierPunctuation;
   },
@@ -66659,7 +67179,7 @@ N3Parser.prototype = {
     else {
       // With explicit quantifiers, close the quantifier list
       if (this._explicitQuantifiers) {
-        this._triple(this._subject, RDF_REST, RDF_NIL, QUANTIFIERS_GRAPH);
+        this._emit(this._subject, this.RDF_REST, this.RDF_NIL, this.QUANTIFIERS_GRAPH);
         this._subject = null;
       }
       // Read a dot
@@ -66691,7 +67211,7 @@ N3Parser.prototype = {
         // Switch back to the context of the list
         this._restoreContext();
         // Output the list item
-        this._triple(this._subject, RDF_FIRST, item, this._graph);
+        this._emit(this._subject, this.RDF_FIRST, item, this._graph);
       }
       return this._afterPath(token);
     }
@@ -66699,7 +67219,7 @@ N3Parser.prototype = {
 
   // ### `_readForwardPath` reads a '!' path
   _readForwardPath: function (token) {
-    var subject, predicate, object = '_:b' + blankNodeCount++;
+    var subject, predicate, object = this._blank();
     // The next token is the predicate
     if ((predicate = this._readEntity(token)) === undefined)
       return;
@@ -66709,14 +67229,14 @@ N3Parser.prototype = {
     // If we were reading an object, replace the subject by the path's object
     else
       subject = this._object,  this._object  = object;
-    // Emit the path's current triple and read its next section
-    this._triple(subject, predicate, object, this._graph);
+    // Emit the path's current quad and read its next section
+    this._emit(subject, predicate, object, this._graph);
     return this._readPath;
   },
 
   // ### `_readBackwardPath` reads a '^' path
   _readBackwardPath: function (token) {
-    var subject = '_:b' + blankNodeCount++, predicate, object;
+    var subject = this._blank(), predicate, object;
     // The next token is the predicate
     if ((predicate = this._readEntity(token)) === undefined)
       return;
@@ -66726,8 +67246,8 @@ N3Parser.prototype = {
     // If we were reading an object, replace the subject by the path's subject
     else
       object = this._object,  this._object  = subject;
-    // Emit the path's current triple and read its next section
-    this._triple(subject, predicate, object, this._graph);
+    // Emit the path's current quad and read its next section
+    this._emit(subject, predicate, object, this._graph);
     return this._readPath;
   },
 
@@ -66747,24 +67267,36 @@ N3Parser.prototype = {
     }
   },
 
-  // ### `_triple` emits a triple through the callback
-  _triple: function (subject, predicate, object, graph) {
-    this._callback(null,
-      { subject: subject, predicate: predicate, object: object, graph: graph || '' });
+  // ### `_emit` sends a quad through the callback
+  _emit: function (subject, predicate, object, graph) {
+    this._callback(null, this._quad(subject, predicate, object, graph || this.DEFAULTGRAPH));
   },
 
   // ### `_error` emits an error message through the callback
   _error: function (message, token) {
-    this._callback(new Error(message + ' on line ' + token.line + '.'));
+    var err = new Error(message + ' on line ' + token.line + '.');
+    err.context = {
+      token: token,
+      line: token.line,
+      previousToken: this._lexer.previousToken,
+    };
+    this._callback(err);
+    this._callback = noop;
   },
 
-  // ### `_resolveIRI` resolves a relative IRI token against the base path,
+  // ### `_resolveIRI` resolves an IRI against the base path
+  _resolveIRI: function (iri) {
+    return /^[a-z][a-z0-9+.-]*:/i.test(iri) ? iri : this._resolveRelativeIRI(iri);
+  },
+
+  // ### `_resolveRelativeIRI` resolves an IRI against the base path,
   // assuming that a base path has been set and that the IRI is indeed relative
-  _resolveIRI: function (token) {
-    var iri = token.value;
-    switch (iri[0]) {
+  _resolveRelativeIRI: function (iri) {
     // An empty relative IRI indicates the base IRI
-    case undefined: return this._base;
+    if (!iri.length)
+      return this._base;
+    // Decide resolving strategy based in the first character
+    switch (iri[0]) {
     // Resolve relative fragment IRIs against the base IRI
     case '#': return this._base + iri;
     // Resolve relative query string IRIs by replacing the query string
@@ -66775,14 +67307,15 @@ N3Parser.prototype = {
       return (iri[1] === '/' ? this._baseScheme : this._baseRoot) + this._removeDotSegments(iri);
     // Resolve all other IRIs at the base IRI's path
     default:
-      return this._removeDotSegments(this._basePath + iri);
+      // Relative IRIs cannot contain a colon in the first path segment
+      return (/^[^/:]*:/.test(iri)) ? '' : this._removeDotSegments(this._basePath + iri);
     }
   },
 
   // ### `_removeDotSegments` resolves './' and '../' path segments in an IRI as per RFC3986
   _removeDotSegments: function (iri) {
     // Don't modify the IRI if it does not contain any dot segments
-    if (!dotSegments.test(iri))
+    if (!/(^|\/)\.\.?($|[/#?])/.test(iri))
       return iri;
 
     // Start with an imaginary slash before the IRI in order to resolve trailing './' and '../'
@@ -66843,32 +67376,33 @@ N3Parser.prototype = {
 
   // ## Public methods
 
-  // ### `parse` parses the N3 input and emits each parsed triple through the callback
-  parse: function (input, tripleCallback, prefixCallback) {
+  // ### `parse` parses the N3 input and emits each parsed quad through the callback
+  parse: function (input, quadCallback, prefixCallback) {
     var self = this;
     // The read callback is the next function to be executed when a token arrives.
     // We start reading in the top context.
     this._readCallback = this._readInTopContext;
     this._sparqlStyle = false;
     this._prefixes = Object.create(null);
-    this._prefixes._ = this._blankNodePrefix || '_:b' + blankNodePrefix++ + '_';
+    this._prefixes._ = this._blankNodePrefix ? this._blankNodePrefix.substr(2)
+                                             : 'b' + blankNodePrefix++ + '_';
     this._prefixCallback = prefixCallback || noop;
     this._inversePredicate = false;
     this._quantified = Object.create(null);
 
-    // Parse synchronously if no triple callback is given
-    if (!tripleCallback) {
-      var triples = [], error;
-      this._callback = function (e, t) { e ? (error = e) : t && triples.push(t); };
+    // Parse synchronously if no quad callback is given
+    if (!quadCallback) {
+      var quads = [], error;
+      this._callback = function (e, t) { e ? (error = e) : t && quads.push(t); };
       this._lexer.tokenize(input).every(function (token) {
         return self._readCallback = self._readCallback(token);
       });
       if (error) throw error;
-      return triples;
+      return quads;
     }
 
     // Parse asynchronously otherwise, executing the read callback when a token arrives
-    this._callback = tripleCallback;
+    this._callback = quadCallback;
     this._lexer.tokenize(input, function (error, token) {
       if (error !== null)
         self._callback(error), self._callback = noop;
@@ -66881,20 +67415,48 @@ N3Parser.prototype = {
 // The empty function
 function noop() {}
 
+// Initializes the parser with the given data factory
+function initDataFactory(parser, factory) {
+  // Set factory methods
+  var namedNode = factory.namedNode;
+  parser._namedNode   = namedNode;
+  parser._blankNode   = factory.blankNode;
+  parser._literal     = factory.literal;
+  parser._variable    = factory.variable;
+  parser._quad        = factory.quad;
+  parser.DEFAULTGRAPH = factory.defaultGraph();
+
+  // Set common named nodes
+  parser.RDF_FIRST  = namedNode(namespaces.rdf.first);
+  parser.RDF_REST   = namedNode(namespaces.rdf.rest);
+  parser.RDF_NIL    = namedNode(namespaces.rdf.nil);
+  parser.N3_FORALL  = namedNode(namespaces.r.forAll);
+  parser.N3_FORSOME = namedNode(namespaces.r.forSome);
+  parser.ABBREVIATIONS = {
+    'a': namedNode(namespaces.rdf.type),
+    '=': namedNode(namespaces.owl.sameAs),
+    '>': namedNode(namespaces.log.implies),
+  };
+  parser.QUANTIFIERS_GRAPH = namedNode('urn:n3:quantifiers');
+}
+initDataFactory(N3Parser.prototype, DataFactory);
+
 // ## Exports
 module.exports = N3Parser;
 
-},{"./N3Lexer":249}],251:[function(require,module,exports){
-// **N3Store** objects store N3 triples by graph in memory.
+},{"./IRIs":249,"./N3DataFactory":250,"./N3Lexer":251}],253:[function(require,module,exports){
+// **N3Store** objects store N3 quads by graph in memory.
 
-var expandPrefixedName = require('./N3Util').expandPrefixedName;
+var DataFactory = require('./N3DataFactory');
+var toId = DataFactory.internal.toId,
+    fromId = DataFactory.internal.fromId;
 
 // ## Constructor
-function N3Store(triples, options) {
+function N3Store(quads, options) {
   if (!(this instanceof N3Store))
-    return new N3Store(triples, options);
+    return new N3Store(quads, options);
 
-  // The number of triples is initially zero
+  // The number of quads is initially zero
   this._size = 0;
   // `_graphs` contains subject, predicate, and object indexes per graph
   this._graphs = Object.create(null);
@@ -66907,30 +67469,28 @@ function N3Store(triples, options) {
   // `_blankNodeIndex` is the index of the last automatically named blank node
   this._blankNodeIndex = 0;
 
-  // Shift parameters if `triples` is not given
-  if (!options && triples && !triples[0])
-    options = triples, triples = null;
+  // Shift parameters if `quads` is not given
+  if (!options && quads && !quads[0])
+    options = quads, quads = null;
   options = options || {};
+  this._factory = options.factory || DataFactory;
 
-  // Add triples and prefixes if passed
-  this._prefixes = Object.create(null);
-  if (options.prefixes)
-    this.addPrefixes(options.prefixes);
-  if (triples)
-    this.addTriples(triples);
+  // Add quads if passed
+  if (quads)
+    this.addQuads(quads);
 }
 
 N3Store.prototype = {
   // ## Public properties
 
-  // ### `size` returns the number of triples in the store
+  // ### `size` returns the number of quads in the store
   get size() {
-    // Return the triple count if if was cached
+    // Return the quad count if if was cached
     var size = this._size;
     if (size !== null)
       return size;
 
-    // Calculate the number of triples by counting to the deepest level
+    // Calculate the number of quads by counting to the deepest level
     size = 0;
     var graphs = this._graphs, subjects, subject;
     for (var graphKey in graphs)
@@ -66942,22 +67502,22 @@ N3Store.prototype = {
 
   // ## Private methods
 
-  // ### `_addToIndex` adds a triple to a three-layered index.
+  // ### `_addToIndex` adds a quad to a three-layered index.
   // Returns if the index has changed, if the entry did not already exist.
   _addToIndex: function (index0, key0, key1, key2) {
     // Create layers as necessary
     var index1 = index0[key0] || (index0[key0] = {});
     var index2 = index1[key1] || (index1[key1] = {});
-    // Setting the key to _any_ value signals the presence of the triple
+    // Setting the key to _any_ value signals the presence of the quad
     var existed = key2 in index2;
     if (!existed)
       index2[key2] = null;
     return !existed;
   },
 
-  // ### `_removeFromIndex` removes a triple from a three-layered index
+  // ### `_removeFromIndex` removes a quad from a three-layered index
   _removeFromIndex: function (index0, key0, key1, key2) {
-    // Remove the triple from the index
+    // Remove the quad from the index
     var index1 = index0[key0], index2 = index1[key1], key;
     delete index2[key2];
 
@@ -66968,15 +67528,15 @@ N3Store.prototype = {
     delete index0[key0];
   },
 
-  // ### `_findInIndex` finds a set of triples in a three-layered index.
+  // ### `_findInIndex` finds a set of quads in a three-layered index.
   // The index base is `index0` and the keys at each level are `key0`, `key1`, and `key2`.
   // Any of these keys can be undefined, which is interpreted as a wildcard.
   // `name0`, `name1`, and `name2` are the names of the keys at each level,
-  // used when reconstructing the resulting triple
+  // used when reconstructing the resulting quad
   // (for instance: _subject_, _predicate_, and _object_).
-  // Finally, `graph` will be the graph of the created triples.
+  // Finally, `graph` will be the graph of the created quads.
   // If `callback` is given, each result is passed through it
-  // and iteration halts when it returns truthy for any triple.
+  // and iteration halts when it returns truthy for any quad.
   // If instead `array` is given, each result is added to the array.
   _findInIndex: function (index0, key0, key1, key2, name0, name1, name2, graph, callback, array) {
     var tmp, index1, index2, varCount = !key0 + !key1 + !key2,
@@ -66997,15 +67557,17 @@ N3Store.prototype = {
           if (index2 = index1[value1]) {
             // If a key is specified, use only that part of index 2, if it exists.
             var values = key2 ? (key2 in index2 ? [key2] : []) : Object.keys(index2);
-            // Create triples for all items found in index 2.
-            for (var l = values.length - 1; l >= 0; l--) {
-              var result = { subject: '', predicate: '', object: '', graph: graph };
-              result[name0] = entity0;
-              result[name1] = entity1;
-              result[name2] = entityKeys[values[l]];
+            // Create quads for all items found in index 2.
+            for (var l = 0; l < values.length; l++) {
+              var parts = { subject: null, predicate: null, object: null };
+              parts[name0] = fromId(entity0, this._factory);
+              parts[name1] = fromId(entity1, this._factory);
+              parts[name2] = fromId(entityKeys[values[l]], this._factory);
+              var quad = this._factory.quad(
+                parts.subject, parts.predicate, parts.object, fromId(graph, this._factory));
               if (array)
-                array.push(result);
-              else if (callback(result))
+                array.push(quad);
+              else if (callback(quad))
                 return true;
             }
           }
@@ -67049,7 +67611,7 @@ N3Store.prototype = {
     }
   },
 
-  // ### `_countInIndex` counts matching triples in a three-layered index.
+  // ### `_countInIndex` counts matching quads in a three-layered index.
   // The index base is `index0` and the keys at each level are `key0`, `key1`, and `key2`.
   // Any of these keys can be undefined, which is interpreted as a wildcard.
   _countInIndex: function (index0, key0, key1, key2) {
@@ -67063,9 +67625,9 @@ N3Store.prototype = {
         if (key1) (tmp = index1, index1 = {})[key1] = tmp[key1];
         for (var value1 in index1) {
           if (index2 = index1[value1]) {
-            // If a key is specified, count the triple if it exists
+            // If a key is specified, count the quad if it exists
             if (key2) (key2 in index2) && count++;
-            // Otherwise, count all triples
+            // Otherwise, count all quads
             else count += Object.keys(index2).length;
           }
         }
@@ -67091,23 +67653,28 @@ N3Store.prototype = {
     return function (id) {
       if (!(id in uniqueIds)) {
         uniqueIds[id] = true;
-        callback(entities[id]);
+        callback(fromId(entities[id]));
       }
     };
   },
 
   // ## Public methods
 
-  // ### `addTriple` adds a new N3 triple to the store.
-  // Returns if the triple index has changed, if the triple did not already exist.
-  addTriple: function (subject, predicate, object, graph) {
-    // Shift arguments if a triple object is given instead of components
+  // ### `addQuad` adds a new quad to the store.
+  // Returns if the quad index has changed, if the quad did not already exist.
+  addQuad: function (subject, predicate, object, graph) {
+    // Shift arguments if a quad object is given instead of components
     if (!predicate)
       graph = subject.graph, object = subject.object,
         predicate = subject.predicate, subject = subject.subject;
 
+    // Convert terms to internal string representation
+    subject = toId(subject);
+    predicate = toId(predicate);
+    object = toId(object);
+    graph = toId(graph);
+
     // Find the graph that will contain the triple
-    graph = graph || '';
     var graphItem = this._graphs[graph];
     // Create the graph if it doesn't exist yet
     if (!graphItem) {
@@ -67130,38 +67697,39 @@ N3Store.prototype = {
     this._addToIndex(graphItem.predicates, predicate, object,    subject);
     this._addToIndex(graphItem.objects,    object,    subject,   predicate);
 
-    // The cached triple count is now invalid
+    // The cached quad count is now invalid
     this._size = null;
     return changed;
   },
 
-  // ### `addTriples` adds multiple N3 triples to the store
-  addTriples: function (triples) {
-    for (var i = triples.length - 1; i >= 0; i--)
-      this.addTriple(triples[i]);
+  // ### `addQuads` adds multiple quads to the store
+  addQuads: function (quads) {
+    for (var i = 0; i < quads.length; i++)
+      this.addQuad(quads[i]);
   },
 
-  // ### `addPrefix` adds support for querying with the given prefix
-  addPrefix: function (prefix, iri) {
-    this._prefixes[prefix] = iri;
+  // ### `import` adds a stream of quads to the store
+  import: function (stream) {
+    var self = this;
+    stream.on('data', function (quad) { self.addQuad(quad); });
+    return stream;
   },
 
-  // ### `addPrefixes` adds support for querying with the given prefixes
-  addPrefixes: function (prefixes) {
-    for (var prefix in prefixes)
-      this.addPrefix(prefix, prefixes[prefix]);
-  },
-
-  // ### `removeTriple` removes an N3 triple from the store if it exists
-  removeTriple: function (subject, predicate, object, graph) {
-    // Shift arguments if a triple object is given instead of components
+  // ### `removeQuad` removes a quad from the store if it exists
+  removeQuad: function (subject, predicate, object, graph) {
+    // Shift arguments if a quad object is given instead of components
     if (!predicate)
       graph = subject.graph, object = subject.object,
         predicate = subject.predicate, subject = subject.subject;
-    graph = graph || '';
+
+    // Convert terms to internal string representation
+    subject = toId(subject);
+    predicate = toId(predicate);
+    object = toId(object);
+    graph = toId(graph);
 
     // Find internal identifiers for all components
-    // and verify the triple exists.
+    // and verify the quad exists.
     var graphItem, ids = this._ids, graphs = this._graphs, subjects, predicates;
     if (!(subject    = ids[subject]) || !(predicate = ids[predicate]) ||
         !(object     = ids[object])  || !(graphItem = graphs[graph])  ||
@@ -67182,27 +67750,28 @@ N3Store.prototype = {
     return true;
   },
 
-  // ### `removeTriples` removes multiple N3 triples from the store
-  removeTriples: function (triples) {
-    for (var i = triples.length - 1; i >= 0; i--)
-      this.removeTriple(triples[i]);
+  // ### `removeQuads` removes multiple quads from the store
+  removeQuads: function (quads) {
+    for (var i = 0; i < quads.length; i++)
+      this.removeQuad(quads[i]);
   },
 
-  // ### `getTriples` returns an array of triples matching a pattern, expanding prefixes as necessary.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  getTriples: function (subject, predicate, object, graph) {
-    var prefixes = this._prefixes;
-    return this.getTriplesByIRI(
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
+  // ### `remove` removes a stream of quads from the store
+  remove: function (stream) {
+    var self = this;
+    stream.on('data', function (quad) { self.removeQuad(quad); });
+    return stream;
   },
 
-  // ### `getTriplesByIRI` returns an array of triples matching a pattern.
+  // ### `getQuads` returns an array of quads matching a pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
-  getTriplesByIRI: function (subject, predicate, object, graph) {
+  getQuads: function (subject, predicate, object, graph) {
+    // Convert terms to internal string representation
+    subject = subject && toId(subject);
+    predicate = predicate && toId(predicate);
+    object = object && toId(object);
+    graph = graph && toId(graph);
+
     var quads = [], graphs = this._getGraphs(graph), content,
         ids = this._ids, subjectId, predicateId, objectId;
 
@@ -67243,21 +67812,15 @@ N3Store.prototype = {
     return quads;
   },
 
-  // ### `countTriples` returns the number of triples matching a pattern, expanding prefixes as necessary.
+  // ### `countQuads` returns the number of quads matching a pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
-  countTriples: function (subject, predicate, object, graph) {
-    var prefixes = this._prefixes;
-    return this.countTriplesByIRI(
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
+  countQuads: function (subject, predicate, object, graph) {
+    // Convert terms to internal string representation
+    subject = subject && toId(subject);
+    predicate = predicate && toId(predicate);
+    object = object && toId(object);
+    graph = graph && toId(graph);
 
-  // ### `countTriplesByIRI` returns the number of triples matching a pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  countTriplesByIRI: function (subject, predicate, object, graph) {
     var count = 0, graphs = this._getGraphs(graph), content,
         ids = this._ids, subjectId, predicateId, objectId;
 
@@ -67292,72 +67855,37 @@ N3Store.prototype = {
     return count;
   },
 
-  // ### `forEach` executes the callback on all triples.
+  // ### `forEach` executes the callback on all quads.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   forEach: function (callback, subject, predicate, object, graph) {
-    var prefixes = this._prefixes;
-    this.forEachByIRI(
-      callback,
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
-
-  // ### `forEachByIRI` executes the callback on all triples.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  forEachByIRI: function (callback, subject, predicate, object, graph) {
-    this.someByIRI(function (quad) {
+    this.some(function (quad) {
       callback(quad);
       return false;
     }, subject, predicate, object, graph);
   },
 
-  // ### `every` executes the callback on all triples,
+  // ### `every` executes the callback on all quads,
   // and returns `true` if it returns truthy for all them.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   every: function (callback, subject, predicate, object, graph) {
-    var prefixes = this._prefixes;
-    return this.everyByIRI(
-      callback,
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
-
-  // ### `everyByIRI` executes the callback on all triples,
-  // and returns `true` if it returns truthy for all them.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  everyByIRI: function (callback, subject, predicate, object, graph) {
     var some = false;
-    var every = !this.someByIRI(function (quad) {
+    var every = !this.some(function (quad) {
       some = true;
       return !callback(quad);
     }, subject, predicate, object, graph);
     return some && every;
   },
 
-  // ### `some` executes the callback on all triples,
+  // ### `some` executes the callback on all quads,
   // and returns `true` if it returns truthy for any of them.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   some: function (callback, subject, predicate, object, graph) {
-    var prefixes = this._prefixes;
-    return this.someByIRI(
-      callback,
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
+    // Convert terms to internal string representation
+    subject = subject && toId(subject);
+    predicate = predicate && toId(predicate);
+    object = object && toId(object);
+    graph = graph && toId(graph);
 
-  // ### `someByIRI` executes the callback on all triples,
-  // and returns `true` if it returns truthy for any of them.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  someByIRI: function (callback, subject, predicate, object, graph) {
     var graphs = this._getGraphs(graph), content,
         ids = this._ids, subjectId, predicateId, objectId;
 
@@ -67368,7 +67896,7 @@ N3Store.prototype = {
       return false;
 
     for (var graphId in graphs) {
-      // Only if the specified graph contains triples, there can be result
+      // Only if the specified graph contains triples, there can be results
       if (content = graphs[graphId]) {
         // Choose the optimal index, based on what fields are present
         if (subjectId) {
@@ -67412,37 +67940,19 @@ N3Store.prototype = {
   // ### `getSubjects` returns all subjects that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   getSubjects: function (predicate, object, graph) {
-    var prefixes = this._prefixes;
-    return this.getSubjectsByIRI(
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
-
-  // ### `getSubjectsByIRI` returns all subjects that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  getSubjectsByIRI: function (predicate, object, graph) {
     var results = [];
-    this.forSubjectsByIRI(function (s) { results.push(s); }, predicate, object, graph);
+    this.forSubjects(function (s) { results.push(s); }, predicate, object, graph);
     return results;
   },
 
   // ### `forSubjects` executes the callback on all subjects that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   forSubjects: function (callback, predicate, object, graph) {
-    var prefixes = this._prefixes;
-    this.forSubjectsByIRI(
-      callback,
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
+    // Convert terms to internal string representation
+    predicate = predicate && toId(predicate);
+    object = object && toId(object);
+    graph = graph && toId(graph);
 
-  // ### `forSubjectsByIRI` executes the callback on all subjects that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  forSubjectsByIRI: function (callback, predicate, object, graph) {
     var ids = this._ids, graphs = this._getGraphs(graph), content, predicateId, objectId;
     callback = this._uniqueEntities(callback);
 
@@ -67476,37 +67986,19 @@ N3Store.prototype = {
   // ### `getPredicates` returns all predicates that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   getPredicates: function (subject, object, graph) {
-    var prefixes = this._prefixes;
-    return this.getPredicatesByIRI(
-      expandPrefixedName(subject, prefixes),
-      expandPrefixedName(object,  prefixes),
-      expandPrefixedName(graph,   prefixes)
-    );
-  },
-
-  // ### `getPredicatesByIRI` returns all predicates that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  getPredicatesByIRI: function (subject, object, graph) {
     var results = [];
-    this.forPredicatesByIRI(function (p) { results.push(p); }, subject, object, graph);
+    this.forPredicates(function (p) { results.push(p); }, subject, object, graph);
     return results;
   },
 
   // ### `forPredicates` executes the callback on all predicates that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   forPredicates: function (callback, subject, object, graph) {
-    var prefixes = this._prefixes;
-    this.forPredicatesByIRI(
-      callback,
-      expandPrefixedName(subject, prefixes),
-      expandPrefixedName(object,  prefixes),
-      expandPrefixedName(graph,   prefixes)
-    );
-  },
+    // Convert terms to internal string representation
+    subject = subject && toId(subject);
+    object = object && toId(object);
+    graph = graph && toId(graph);
 
-  // ### `forPredicatesByIRI` executes the callback on all predicates that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  forPredicatesByIRI: function (callback, subject, object, graph) {
     var ids = this._ids, graphs = this._getGraphs(graph), content, subjectId, objectId;
     callback = this._uniqueEntities(callback);
 
@@ -67540,37 +68032,19 @@ N3Store.prototype = {
   // ### `getObjects` returns all objects that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   getObjects: function (subject, predicate, graph) {
-    var prefixes = this._prefixes;
-    return this.getObjectsByIRI(
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
-
-  // ### `getObjectsByIRI` returns all objects that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  getObjectsByIRI: function (subject, predicate, graph) {
     var results = [];
-    this.forObjectsByIRI(function (o) { results.push(o); }, subject, predicate, graph);
+    this.forObjects(function (o) { results.push(o); }, subject, predicate, graph);
     return results;
   },
 
   // ### `forObjects` executes the callback on all objects that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   forObjects: function (callback, subject, predicate, graph) {
-    var prefixes = this._prefixes;
-    this.forObjectsByIRI(
-      callback,
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(graph,     prefixes)
-    );
-  },
+    // Convert terms to internal string representation
+    subject = subject && toId(subject);
+    predicate = predicate && toId(predicate);
+    graph = graph && toId(graph);
 
-  // ### `forObjectsByIRI` executes the callback on all objects that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  forObjectsByIRI: function (callback, subject, predicate, graph) {
     var ids = this._ids, graphs = this._getGraphs(graph), content, subjectId, predicateId;
     callback = this._uniqueEntities(callback);
 
@@ -67604,39 +68078,16 @@ N3Store.prototype = {
   // ### `getGraphs` returns all graphs that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   getGraphs: function (subject, predicate, object) {
-    var prefixes = this._prefixes;
-    return this.getGraphsByIRI(
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes)
-    );
-  },
-
-  // ### `getGraphsByIRI` returns all graphs that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  getGraphsByIRI: function (subject, predicate, object) {
     var results = [];
-    this.forGraphsByIRI(function (g) { results.push(g); }, subject, predicate, object);
+    this.forGraphs(function (g) { results.push(g); }, subject, predicate, object);
     return results;
   },
 
   // ### `forGraphs` executes the callback on all graphs that match the pattern.
   // Setting any field to `undefined` or `null` indicates a wildcard.
   forGraphs: function (callback, subject, predicate, object) {
-    var prefixes = this._prefixes;
-    this.forGraphsByIRI(
-      callback,
-      expandPrefixedName(subject,   prefixes),
-      expandPrefixedName(predicate, prefixes),
-      expandPrefixedName(object,    prefixes)
-    );
-  },
-
-  // ### `forGraphsByIRI` executes the callback on all graphs that match the pattern.
-  // Setting any field to `undefined` or `null` indicates a wildcard.
-  forGraphsByIRI: function (callback, subject, predicate, object) {
     for (var graph in this._graphs) {
-      this.someByIRI(function (quad) {
+      this.some(function (quad) {
         callback(quad.graph);
         return true; // Halt iteration of some()
       }, subject, predicate, object, graph);
@@ -67660,7 +68111,7 @@ N3Store.prototype = {
     // Add the blank node to the entities, avoiding the generation of duplicates
     this._ids[name] = ++this._id;
     this._entities[this._id] = name;
-    return name;
+    return this._factory.blankNode(name.substr(2));
   },
 };
 
@@ -67672,8 +68123,8 @@ function isString(s) {
 // ## Exports
 module.exports = N3Store;
 
-},{"./N3Util":254}],252:[function(require,module,exports){
-// **N3StreamParser** parses an N3 stream into a triple stream.
+},{"./N3DataFactory":250}],254:[function(require,module,exports){
+// **N3StreamParser** parses a text stream into a quad stream.
 var Transform = require('stream').Transform,
     util = require('util'),
     N3Parser = require('./N3Parser.js');
@@ -67689,13 +68140,19 @@ function N3StreamParser(options) {
 
   // Set up parser
   var self = this, parser = new N3Parser(options), onData, onEnd;
-  parser.parse(
-    // Pass dummy stream to obtain `data` and `end` callbacks
-    { on: function (event, cb) { event === 'data' ? (onData = cb) : (onEnd = cb); } },
-    // Handle triples by pushing them down the pipeline
-    function (error, t) { error && self.emit('error', error) || t && self.push(t); },
-    // Emit prefixes through the `prefix` event
-    function (prefix, uri) { self.emit('prefix', prefix, uri); });
+  // Pass dummy stream to obtain `data` and `end` callbacks
+  parser.parse({
+    on: function (event, callback) {
+      switch (event) {
+      case 'data': onData = callback; break;
+      case 'end':   onEnd = callback; break;
+      }
+    },
+  },
+  // Handle quads by pushing them down the pipeline
+  function (error, quad) { error && self.emit('error', error) || quad && self.push(quad); },
+  // Emit prefixes through the `prefix` event
+  function (prefix, uri) { self.emit('prefix', prefix, uri); });
 
   // Implement Transform methods through parser callbacks
   this._transform = function (chunk, encoding, done) { onData(chunk); done(); };
@@ -67703,11 +68160,20 @@ function N3StreamParser(options) {
 }
 util.inherits(N3StreamParser, Transform);
 
+// ### Parses a stream of strings
+N3StreamParser.prototype.import = function (stream) {
+  var self = this;
+  stream.on('data',  function (chunk) { self.write(chunk); });
+  stream.on('end',   function ()      { self.end(); });
+  stream.on('error', function (error) { self.emit('error', error); });
+  return this;
+};
+
 // ## Exports
 module.exports = N3StreamParser;
 
-},{"./N3Parser.js":250,"stream":377,"util":399}],253:[function(require,module,exports){
-// **N3StreamWriter** serializes a triple stream into an N3 stream.
+},{"./N3Parser.js":252,"stream":379,"util":401}],255:[function(require,module,exports){
+// **N3StreamWriter** serializes a quad stream into a text stream.
 var Transform = require('stream').Transform,
     util = require('util'),
     N3Writer = require('./N3Writer.js');
@@ -67723,159 +68189,93 @@ function N3StreamWriter(options) {
 
   // Set up writer with a dummy stream object
   var self = this;
-  var writer = new N3Writer({
-    write: function (chunk, encoding, callback) { self.push(chunk); callback && callback(); },
+  var writer = this._writer = new N3Writer({
+    write: function (quad, encoding, callback) { self.push(quad); callback && callback(); },
     end: function (callback) { self.push(null); callback && callback(); },
   }, options);
 
   // Implement Transform methods on top of writer
-  this._transform = function (triple, encoding, done) { writer.addTriple(triple, done); };
+  this._transform = function (quad, encoding, done) { writer.addQuad(quad, done); };
   this._flush = function (done) { writer.end(done); };
 }
 util.inherits(N3StreamWriter, Transform);
 
+// ### Serializes a stream of quads
+N3StreamWriter.prototype.import = function (stream) {
+  var self = this;
+  stream.on('data',   function (quad)  { self.write(quad); });
+  stream.on('end',    function ()      { self.end(); });
+  stream.on('error',  function (error) { self.emit('error', error); });
+  stream.on('prefix', function (prefix, iri) { self._writer.addPrefix(prefix, iri); });
+  return this;
+};
+
 // ## Exports
 module.exports = N3StreamWriter;
 
-},{"./N3Writer.js":255,"stream":377,"util":399}],254:[function(require,module,exports){
+},{"./N3Writer.js":257,"stream":379,"util":401}],256:[function(require,module,exports){
 // **N3Util** provides N3 utility functions.
 
-var Xsd = 'http://www.w3.org/2001/XMLSchema#';
-var XsdString  = Xsd + 'string';
-var XsdInteger = Xsd + 'integer';
-var XsdDouble = Xsd + 'double';
-var XsdBoolean = Xsd + 'boolean';
-var RdfLangString = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';
+var DataFactory = require('./N3DataFactory');
 
 var N3Util = {
-  // Tests whether the given entity (triple object) represents an IRI in the N3 library
-  isIRI: function (entity) {
-    if (typeof entity !== 'string')
-      return false;
-    else if (entity.length === 0)
-      return true;
-    else {
-      var firstChar = entity[0];
-      return firstChar !== '"' && firstChar !== '_';
-    }
+  // Tests whether the given term represents an IRI
+  isNamedNode: function (term) {
+    return !!term && term.termType === 'NamedNode';
   },
 
-  // Tests whether the given entity (triple object) represents a literal in the N3 library
-  isLiteral: function (entity) {
-    return typeof entity === 'string' && entity[0] === '"';
+  // Tests whether the given term represents a blank node
+  isBlankNode: function (term) {
+    return !!term && term.termType === 'BlankNode';
   },
 
-  // Tests whether the given entity (triple object) represents a blank node in the N3 library
-  isBlank: function (entity) {
-    return typeof entity === 'string' && entity.substr(0, 2) === '_:';
+  // Tests whether the given term represents a literal
+  isLiteral: function (term) {
+    return !!term && term.termType === 'Literal';
   },
 
-  // Tests whether the given entity represents the default graph
-  isDefaultGraph: function (entity) {
-    return !entity;
+  // Tests whether the given term represents a variable
+  isVariable: function (term) {
+    return !!term && term.termType === 'Variable';
   },
 
-  // Tests whether the given triple is in the default graph
-  inDefaultGraph: function (triple) {
-    return !triple.graph;
+  // Tests whether the given term represents the default graph
+  isDefaultGraph: function (term) {
+    return !!term && term.termType === 'DefaultGraph';
   },
 
-  // Gets the string value of a literal in the N3 library
-  getLiteralValue: function (literal) {
-    var match = /^"([^]*)"/.exec(literal);
-    if (!match)
-      throw new Error(literal + ' is not a literal');
-    return match[1];
-  },
-
-  // Gets the type of a literal in the N3 library
-  getLiteralType: function (literal) {
-    var match = /^"[^]*"(?:\^\^([^"]+)|(@)[^@"]+)?$/.exec(literal);
-    if (!match)
-      throw new Error(literal + ' is not a literal');
-    return match[1] || (match[2] ? RdfLangString : XsdString);
-  },
-
-  // Gets the language of a literal in the N3 library
-  getLiteralLanguage: function (literal) {
-    var match = /^"[^]*"(?:@([^@"]+)|\^\^[^"]+)?$/.exec(literal);
-    if (!match)
-      throw new Error(literal + ' is not a literal');
-    return match[1] ? match[1].toLowerCase() : '';
-  },
-
-  // Tests whether the given entity (triple object) represents a prefixed name
-  isPrefixedName: function (entity) {
-    return typeof entity === 'string' && /^[^:\/"']*:[^:\/"']+$/.test(entity);
-  },
-
-  // Expands the prefixed name to a full IRI (also when it occurs as a literal's type)
-  expandPrefixedName: function (prefixedName, prefixes) {
-    var match = /(?:^|"\^\^)([^:\/#"'\^_]*):[^\/]*$/.exec(prefixedName), prefix, base, index;
-    if (match)
-      prefix = match[1], base = prefixes[prefix], index = match.index;
-    if (base === undefined)
-      return prefixedName;
-
-    // The match index is non-zero when expanding a literal's type
-    return index === 0 ? base + prefixedName.substr(prefix.length + 1)
-                       : prefixedName.substr(0, index + 3) +
-                         base + prefixedName.substr(index + prefix.length + 4);
-  },
-
-  // Creates an IRI in N3.js representation
-  createIRI: function (iri) {
-    return iri && iri[0] === '"' ? N3Util.getLiteralValue(iri) : iri;
-  },
-
-  // Creates a literal in N3.js representation
-  createLiteral: function (value, modifier) {
-    if (!modifier) {
-      switch (typeof value) {
-      case 'boolean':
-        modifier = XsdBoolean;
-        break;
-      case 'number':
-        if (isFinite(value))
-          modifier = value % 1 === 0 ? XsdInteger : XsdDouble;
-        else {
-          modifier = XsdDouble;
-          if (!isNaN(value))
-            value = value > 0 ? 'INF' : '-INF';
-        }
-        break;
-      default:
-        return '"' + value + '"';
-      }
-    }
-    return '"' + value +
-           (/^[a-z]+(-[a-z0-9]+)*$/i.test(modifier) ? '"@'  + modifier.toLowerCase()
-                                                    : '"^^' + modifier);
+  // Tests whether the given quad is in the default graph
+  inDefaultGraph: function (quad) {
+    return N3Util.isDefaultGraph(quad.graph);
   },
 
   // Creates a function that prepends the given IRI to a local name
-  prefix: function (iri) {
-    return N3Util.prefixes({ '': iri })('');
+  prefix: function (iri, factory) {
+    return N3Util.prefixes({ '': iri }, factory)('');
   },
 
   // Creates a function that allows registering and expanding prefixes
-  prefixes: function (defaultPrefixes) {
+  prefixes: function (defaultPrefixes, factory) {
     // Add all of the default prefixes
     var prefixes = Object.create(null);
     for (var prefix in defaultPrefixes)
       processPrefix(prefix, defaultPrefixes[prefix]);
+    // Set the default factory if none was specified
+    factory = factory || DataFactory;
 
     // Registers a new prefix (if an IRI was specified)
     // or retrieves a function that expands an existing prefix (if no IRI was specified)
     function processPrefix(prefix, iri) {
       // Create a new prefix if an IRI is specified or the prefix doesn't exist
-      if (iri || !(prefix in prefixes)) {
-        var cache = Object.create(null);
-        iri = iri || '';
+      if (typeof iri === 'string') {
         // Create a function that expands the prefix
-        prefixes[prefix] = function (localName) {
-          return cache[localName] || (cache[localName] = iri + localName);
+        var cache = Object.create(null);
+        prefixes[prefix] = function (local) {
+          return cache[local] || (cache[local] = factory.namedNode(iri + local));
         };
+      }
+      else if (!(prefix in prefixes)) {
+        throw new Error('Unknown prefix: ' + prefix);
       }
       return prefixes[prefix];
     }
@@ -67886,20 +68286,21 @@ var N3Util = {
 // ## Exports
 module.exports = N3Util;
 
-},{}],255:[function(require,module,exports){
+},{"./N3DataFactory":250}],257:[function(require,module,exports){
 // **N3Writer** writes N3 documents.
 
-// Matches a literal as represented in memory by the N3 library
-var N3LiteralMatcher = /^"([^]*)"(?:\^\^(.+)|@([\-a-z]+))?$/i;
+var namespaces = require('./IRIs'),
+    DataFactory = require('./N3DataFactory');
 
-// rdf:type predicate (for 'a' abbreviation)
-var RDF_PREFIX = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-    RDF_TYPE   = RDF_PREFIX + 'type';
+var DEFAULTGRAPH = DataFactory.defaultGraph();
+
+var rdf = namespaces.rdf,
+    xsd = namespaces.xsd;
 
 // Characters in literals that require escaping
 var escape    = /["\\\t\n\r\b\f\u0000-\u0019\ud800-\udbff]/,
     escapeAll = /["\\\t\n\r\b\f\u0000-\u0019]|[\ud800-\udbff][\udc00-\udfff]/g,
-    escapeReplacements = {
+    escapedCharacters = {
       '\\': '\\\\', '"': '\\"', '\t': '\\t',
       '\n': '\\n', '\r': '\\r', '\b': '\\b', '\f': '\\f',
     };
@@ -67931,39 +68332,43 @@ function N3Writer(outputStream, options) {
   // Initialize writer, depending on the format
   this._subject = null;
   if (!(/triple|quad/i).test(options.format)) {
-    this._graph = '';
+    this._graph = DEFAULTGRAPH;
     this._prefixIRIs = Object.create(null);
     options.prefixes && this.addPrefixes(options.prefixes);
   }
   else {
-    this._writeTriple = this._writeTripleLine;
+    this._writeQuad = this._writeQuadLine;
   }
 }
 
 N3Writer.prototype = {
   // ## Private methods
 
+  // ### Whether the current graph is the default graph
+  get _inDefaultGraph() {
+    return DEFAULTGRAPH.equals(this._graph);
+  },
+
   // ### `_write` writes the argument to the output stream
   _write: function (string, callback) {
     this._outputStream.write(string, 'utf8', callback);
   },
 
-    // ### `_writeTriple` writes the triple to the output stream
-  _writeTriple: function (subject, predicate, object, graph, done) {
+  // ### `_writeQuad` writes the quad to the output stream
+  _writeQuad: function (subject, predicate, object, graph, done) {
     try {
       // Write the graph's label if it has changed
-      if (this._graph !== graph) {
+      if (!graph.equals(this._graph)) {
         // Close the previous graph and start the new one
-        this._write((this._subject === null ? '' : (this._graph ? '\n}\n' : '.\n')) +
-                    (graph ? this._encodeIriOrBlankNode(graph) + ' {\n' : ''));
+        this._write((this._subject === null ? '' : (this._inDefaultGraph ? '.\n' : '\n}\n')) +
+                    (DEFAULTGRAPH.equals(graph) ? '' : this._encodeIriOrBlank(graph) + ' {\n'));
+        this._graph = graph;
         this._subject = null;
-        // Don't treat identical blank nodes as repeating graphs
-        this._graph = graph[0] !== '[' ? graph : ']';
       }
       // Don't repeat the subject if it's the same
-      if (this._subject === subject) {
+      if (subject.equals(this._subject)) {
         // Don't repeat the predicate if it's the same
-        if (this._predicate === predicate)
+        if (predicate.equals(this._predicate))
           this._write(', ' + this._encodeObject(object), done);
         // Same subject, different predicate
         else
@@ -67971,85 +68376,76 @@ N3Writer.prototype = {
                       this._encodePredicate(this._predicate = predicate) + ' ' +
                       this._encodeObject(object), done);
       }
-      // Different subject; write the whole triple
+      // Different subject; write the whole quad
       else
         this._write((this._subject === null ? '' : '.\n') +
-                    this._encodeSubject(this._subject = subject) + ' ' +
+                    this._encodeIriOrBlank(this._subject = subject) + ' ' +
                     this._encodePredicate(this._predicate = predicate) + ' ' +
                     this._encodeObject(object), done);
     }
     catch (error) { done && done(error); }
   },
 
-  // ### `_writeTripleLine` writes the triple or quad to the output stream as a single line
-  _writeTripleLine: function (subject, predicate, object, graph, done) {
-    // Don't use prefixes
+  // ### `_writeQuadLine` writes the quad to the output stream as a single line
+  _writeQuadLine: function (subject, predicate, object, graph, done) {
+    // Write the quad without prefixes
     delete this._prefixMatch;
-    // Write the triple
-    try {
-      this._write(this._encodeIriOrBlankNode(subject) + ' ' +
-                  this._encodeIriOrBlankNode(predicate) + ' ' +
-                  this._encodeObject(object) +
-                  (graph ? ' ' + this._encodeIriOrBlankNode(graph) + '.\n' : '.\n'), done);
-    }
-    catch (error) { done && done(error); }
+    this._write(this.quadToString(subject, predicate, object, graph), done);
   },
 
-  // ### `_encodeIriOrBlankNode` represents an IRI or blank node
-  _encodeIriOrBlankNode: function (entity) {
+  // ### `quadToString` serializes a quad as a string
+  quadToString: function (subject, predicate, object, graph) {
+    return  this._encodeIriOrBlank(subject)   + ' ' +
+            this._encodeIriOrBlank(predicate) + ' ' +
+            this._encodeObject(object) +
+            (graph && graph.value ? ' ' + this._encodeIriOrBlank(graph) + ' .\n' : ' .\n');
+  },
+
+  // ### `quadsToString` serializes an array of quads as a string
+  quadsToString: function (quads) {
+    return quads.map(function (t) {
+      return this.quadToString(t.subject, t.predicate, t.object, t.graph);
+    }, this).join('');
+  },
+
+  // ### `_encodeIriOrBlank` represents an IRI or blank node
+  _encodeIriOrBlank: function (entity) {
     // A blank node or list is represented as-is
-    var firstChar = entity[0];
-    if (firstChar === '[' || firstChar === '(' || firstChar === '_' && entity[1] === ':')
-      return entity;
+    if (entity.termType !== 'NamedNode')
+      return 'id' in entity ? entity.id : '_:' + entity.value;
     // Escape special characters
-    if (escape.test(entity))
-      entity = entity.replace(escapeAll, characterReplacer);
+    var iri = entity.value;
+    if (escape.test(iri))
+      iri = iri.replace(escapeAll, characterReplacer);
     // Try to represent the IRI as prefixed name
-    var prefixMatch = this._prefixRegex.exec(entity);
-    return !prefixMatch ? '<' + entity + '>' :
-           (!prefixMatch[1] ? entity : this._prefixIRIs[prefixMatch[1]] + prefixMatch[2]);
+    var prefixMatch = this._prefixRegex.exec(iri);
+    return !prefixMatch ? '<' + iri + '>' :
+           (!prefixMatch[1] ? iri : this._prefixIRIs[prefixMatch[1]] + prefixMatch[2]);
   },
 
   // ### `_encodeLiteral` represents a literal
-  _encodeLiteral: function (value, type, language) {
+  _encodeLiteral: function (literal) {
     // Escape special characters
+    var value = literal.value;
     if (escape.test(value))
       value = value.replace(escapeAll, characterReplacer);
     // Write the literal, possibly with type or language
-    if (language)
-      return '"' + value + '"@' + language;
-    else if (type)
-      return '"' + value + '"^^' + this._encodeIriOrBlankNode(type);
+    if (literal.language)
+      return '"' + value + '"@' + literal.language;
+    else if (literal.datatype.value !== xsd.string)
+      return '"' + value + '"^^' + this._encodeIriOrBlank(literal.datatype);
     else
       return '"' + value + '"';
   },
 
-  // ### `_encodeSubject` represents a subject
-  _encodeSubject: function (subject) {
-    if (subject[0] === '"')
-      throw new Error('A literal as subject is not allowed: ' + subject);
-    // Don't treat identical blank nodes as repeating subjects
-    if (subject[0] === '[')
-      this._subject = ']';
-    return this._encodeIriOrBlankNode(subject);
-  },
-
   // ### `_encodePredicate` represents a predicate
   _encodePredicate: function (predicate) {
-    if (predicate[0] === '"')
-      throw new Error('A literal as predicate is not allowed: ' + predicate);
-    return predicate === RDF_TYPE ? 'a' : this._encodeIriOrBlankNode(predicate);
+    return predicate.value === rdf.type ? 'a' : this._encodeIriOrBlank(predicate);
   },
 
   // ### `_encodeObject` represents an object
   _encodeObject: function (object) {
-    // Represent an IRI or blank node
-    if (object[0] !== '"')
-      return this._encodeIriOrBlankNode(object);
-    // Represent a literal
-    var match = N3LiteralMatcher.exec(object);
-    if (!match) throw new Error('Invalid literal: ' + object);
-    return this._encodeLiteral(match[1], match[2], match[3]);
+    return object.termType === 'Literal' ? this._encodeLiteral(object) : this._encodeIriOrBlank(object);
   },
 
   // ### `_blockedWrite` replaces `_write` after the writer has been closed
@@ -68057,24 +68453,23 @@ N3Writer.prototype = {
     throw new Error('Cannot write because the writer has been closed.');
   },
 
-  // ### `addTriple` adds the triple to the output stream
-  addTriple: function (subject, predicate, object, graph, done) {
-    // The triple was given as a triple object, so shift parameters
+  // ### `addQuad` adds the quad to the output stream
+  addQuad: function (subject, predicate, object, graph, done) {
+    // The quad was given as an object, so shift parameters
     if (object === undefined)
-      this._writeTriple(subject.subject, subject.predicate, subject.object,
-                        subject.graph || '', predicate);
+      this._writeQuad(subject.subject, subject.predicate, subject.object, subject.graph, predicate);
     // The optional `graph` parameter was not provided
-    else if (typeof graph !== 'string')
-      this._writeTriple(subject, predicate, object, '', graph);
+    else if (typeof graph === 'function')
+      this._writeQuad(subject, predicate, object, DEFAULTGRAPH, graph);
     // The `graph` parameter was provided
     else
-      this._writeTriple(subject, predicate, object, graph, done);
+      this._writeQuad(subject, predicate, object, graph || DEFAULTGRAPH, done);
   },
 
-  // ### `addTriples` adds the triples to the output stream
-  addTriples: function (triples) {
-    for (var i = 0; i < triples.length; i++)
-      this.addTriple(triples[i]);
+  // ### `addQuads` adds the quads to the output stream
+  addQuads: function (quads) {
+    for (var i = 0; i < quads.length; i++)
+      this.addQuad(quads[i]);
   },
 
   // ### `addPrefix` adds the prefix to the output stream
@@ -68091,12 +68486,14 @@ N3Writer.prototype = {
     for (var prefix in prefixes) {
       // Verify whether the prefix can be used and does not exist yet
       var iri = prefixes[prefix];
+      if (typeof iri !== 'string')
+        iri = iri.value;
       if (/[#\/]$/.test(iri) && prefixIRIs[iri] !== (prefix += ':')) {
         hasPrefixes = true;
         prefixIRIs[iri] = prefix;
-        // Finish a possible pending triple
+        // Finish a possible pending quad
         if (this._subject !== null) {
-          this._write(this._graph ? '\n}\n' : '.\n');
+          this._write(this._inDefaultGraph ? '.\n' : '\n}\n');
           this._subject = null, this._graph = '';
         }
         // Write prefix
@@ -68124,8 +68521,8 @@ N3Writer.prototype = {
     // Empty blank node
     if (predicate === undefined)
       children = [];
-    // Blank node passed as blank("predicate", "object")
-    else if (typeof predicate === 'string')
+    // Blank node passed as blank(Term("predicate"), Term("object"))
+    else if (predicate.termType)
       children = [{ predicate: predicate, object: object }];
     // Blank node passed as blank({ predicate: predicate, object: object })
     else if (!('length' in predicate))
@@ -68134,13 +68531,13 @@ N3Writer.prototype = {
     switch (length = children.length) {
     // Generate an empty blank node
     case 0:
-      return '[]';
+      return new SerializedTerm('[]');
     // Generate a non-nested one-triple blank node
     case 1:
       child = children[0];
-      if (child.object[0] !== '[')
-        return '[ ' + this._encodePredicate(child.predicate) + ' ' +
-                      this._encodeObject(child.object) + ' ]';
+      if (!(child.object instanceof SerializedTerm))
+        return new SerializedTerm('[ ' + this._encodePredicate(child.predicate) + ' ' +
+                                  this._encodeObject(child.object) + ' ]');
     // Generate a multi-triple or nested blank node
     default:
       var contents = '[';
@@ -68148,7 +68545,7 @@ N3Writer.prototype = {
       for (var i = 0; i < length; i++) {
         child = children[i];
         // Write only the object is the predicate is the same as the previous
-        if (child.predicate === predicate)
+        if (child.predicate.equals(predicate))
           contents += ', ' + this._encodeObject(child.object);
         // Otherwise, write the predicate and the object
         else {
@@ -68158,7 +68555,7 @@ N3Writer.prototype = {
           predicate = child.predicate;
         }
       }
-      return contents + '\n]';
+      return new SerializedTerm(contents + '\n]');
     }
   },
 
@@ -68167,7 +68564,7 @@ N3Writer.prototype = {
     var length = elements && elements.length || 0, contents = new Array(length);
     for (var i = 0; i < length; i++)
       contents[i] = this._encodeObject(elements[i]);
-    return '(' + contents.join(' ') + ')';
+    return new SerializedTerm('(' + contents.join(' ') + ')');
   },
 
   // ### `_prefixRegex` matches a prefixed name or IRI that begins with one of the added prefixes
@@ -68175,9 +68572,9 @@ N3Writer.prototype = {
 
   // ### `end` signals the end of the output stream
   end: function (done) {
-    // Finish a possible pending triple
+    // Finish a possible pending quad
     if (this._subject !== null) {
-      this._write(this._graph ? '\n}\n' : '.\n');
+      this._write(this._inDefaultGraph ? '.\n' : '\n}\n');
       this._subject = null;
     }
     // Disallow further writing
@@ -68196,7 +68593,7 @@ N3Writer.prototype = {
 // Replaces a character by its escaped version
 function characterReplacer(character) {
   // Replace a single character by its escaped version
-  var result = escapeReplacements[character];
+  var result = escapedCharacters[character];
   if (result === undefined) {
     // Replace a single character with its 4-bit unicode escape sequence
     if (character.length === 1) {
@@ -68213,10 +68610,20 @@ function characterReplacer(character) {
   return result;
 }
 
+// ## Placeholder class to represent already pretty-printed terms
+function SerializedTerm(value) {
+  this.id = value;
+}
+DataFactory.internal.Term.subclass(SerializedTerm);
+
+// Pretty-printed nodes are not equal to any other node
+// (e.g., [] does not equal [])
+SerializedTerm.prototype.equals = function () { return false; };
+
 // ## Exports
 module.exports = N3Writer;
 
-},{}],256:[function(require,module,exports){
+},{"./IRIs":249,"./N3DataFactory":250}],258:[function(require,module,exports){
 var crypto = require('crypto')
 
 function sha (key, body, algorithm) {
@@ -68363,7 +68770,7 @@ exports.plaintext = plaintext
 exports.sign = sign
 exports.rfc3986 = rfc3986
 exports.generateBase = generateBase
-},{"crypto":134}],257:[function(require,module,exports){
+},{"crypto":134}],259:[function(require,module,exports){
 exports.endianness = function () { return 'LE' };
 
 exports.hostname = function () {
@@ -68414,7 +68821,7 @@ exports.homedir = function () {
 	return '/'
 };
 
-},{}],258:[function(require,module,exports){
+},{}],260:[function(require,module,exports){
 'use strict';
 
 
@@ -68521,7 +68928,7 @@ exports.setTyped = function (on) {
 
 exports.setTyped(TYPED_OK);
 
-},{}],259:[function(require,module,exports){
+},{}],261:[function(require,module,exports){
 'use strict';
 
 // Note: adler32 takes 12% for level 0 and 2% for level 6.
@@ -68574,7 +68981,7 @@ function adler32(adler, buf, len, pos) {
 
 module.exports = adler32;
 
-},{}],260:[function(require,module,exports){
+},{}],262:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -68644,7 +69051,7 @@ module.exports = {
   //Z_NULL:                 null // Use -1 or null inline, depending on var type
 };
 
-},{}],261:[function(require,module,exports){
+},{}],263:[function(require,module,exports){
 'use strict';
 
 // Note: we can't get significant speed boost here.
@@ -68705,7 +69112,7 @@ function crc32(crc, buf, len, pos) {
 
 module.exports = crc32;
 
-},{}],262:[function(require,module,exports){
+},{}],264:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -70581,7 +70988,7 @@ exports.deflatePrime = deflatePrime;
 exports.deflateTune = deflateTune;
 */
 
-},{"../utils/common":258,"./adler32":259,"./crc32":261,"./messages":266,"./trees":267}],263:[function(require,module,exports){
+},{"../utils/common":260,"./adler32":261,"./crc32":263,"./messages":268,"./trees":269}],265:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -70928,7 +71335,7 @@ module.exports = function inflate_fast(strm, start) {
   return;
 };
 
-},{}],264:[function(require,module,exports){
+},{}],266:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -72486,7 +72893,7 @@ exports.inflateSyncPoint = inflateSyncPoint;
 exports.inflateUndermine = inflateUndermine;
 */
 
-},{"../utils/common":258,"./adler32":259,"./crc32":261,"./inffast":263,"./inftrees":265}],265:[function(require,module,exports){
+},{"../utils/common":260,"./adler32":261,"./crc32":263,"./inffast":265,"./inftrees":267}],267:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -72831,7 +73238,7 @@ module.exports = function inflate_table(type, lens, lens_index, codes, table, ta
   return 0;
 };
 
-},{"../utils/common":258}],266:[function(require,module,exports){
+},{"../utils/common":260}],268:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -72865,7 +73272,7 @@ module.exports = {
   '-6':   'incompatible version' /* Z_VERSION_ERROR (-6) */
 };
 
-},{}],267:[function(require,module,exports){
+},{}],269:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -74089,7 +74496,7 @@ exports._tr_flush_block  = _tr_flush_block;
 exports._tr_tally = _tr_tally;
 exports._tr_align = _tr_align;
 
-},{"../utils/common":258}],268:[function(require,module,exports){
+},{"../utils/common":260}],270:[function(require,module,exports){
 'use strict';
 
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -74138,7 +74545,7 @@ function ZStream() {
 
 module.exports = ZStream;
 
-},{}],269:[function(require,module,exports){
+},{}],271:[function(require,module,exports){
 module.exports={"2.16.840.1.101.3.4.1.1": "aes-128-ecb",
 "2.16.840.1.101.3.4.1.2": "aes-128-cbc",
 "2.16.840.1.101.3.4.1.3": "aes-128-ofb",
@@ -74152,7 +74559,7 @@ module.exports={"2.16.840.1.101.3.4.1.1": "aes-128-ecb",
 "2.16.840.1.101.3.4.1.43": "aes-256-ofb",
 "2.16.840.1.101.3.4.1.44": "aes-256-cfb"
 }
-},{}],270:[function(require,module,exports){
+},{}],272:[function(require,module,exports){
 // from https://github.com/indutny/self-signed/blob/gh-pages/lib/asn1.js
 // Fedor, you are amazing.
 'use strict'
@@ -74276,7 +74683,7 @@ exports.signature = asn1.define('signature', function () {
   )
 })
 
-},{"./certificate":271,"asn1.js":56}],271:[function(require,module,exports){
+},{"./certificate":273,"asn1.js":56}],273:[function(require,module,exports){
 // from https://github.com/Rantanen/node-dtls/blob/25a7dc861bda38cfeac93a723500eea4f0ac2e86/Certificate.js
 // thanks to @Rantanen
 
@@ -74367,7 +74774,7 @@ var X509Certificate = asn.define('X509Certificate', function () {
 
 module.exports = X509Certificate
 
-},{"asn1.js":56}],272:[function(require,module,exports){
+},{"asn1.js":56}],274:[function(require,module,exports){
 (function (Buffer){
 // adapted from https://github.com/apatil/pemstrip
 var findProc = /Proc-Type: 4,ENCRYPTED[\n\r]+DEK-Info: AES-((?:128)|(?:192)|(?:256))-CBC,([0-9A-H]+)[\n\r]+([0-9A-z\n\r\+\/\=]+)[\n\r]+/m
@@ -74401,7 +74808,7 @@ module.exports = function (okey, password) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"browserify-aes":92,"buffer":122,"evp_bytestokey":167}],273:[function(require,module,exports){
+},{"browserify-aes":92,"buffer":122,"evp_bytestokey":167}],275:[function(require,module,exports){
 var asn1 = require('./asn1')
 var aesid = require('./aesid.json')
 var fixProc = require('./fixProc')
@@ -74510,7 +74917,7 @@ function decrypt (data, password) {
   return Buffer.concat(out)
 }
 
-},{"./aesid.json":269,"./asn1":270,"./fixProc":272,"browserify-aes":92,"pbkdf2":275,"safe-buffer":341}],274:[function(require,module,exports){
+},{"./aesid.json":271,"./asn1":272,"./fixProc":274,"browserify-aes":92,"pbkdf2":277,"safe-buffer":343}],276:[function(require,module,exports){
 (function (process){
 // .dirname, .basename, and .extname methods are extracted from Node.js v8.11.1,
 // backported and transplited with Babel, with backwards-compat fixes
@@ -74816,11 +75223,11 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require('_process'))
-},{"_process":282}],275:[function(require,module,exports){
+},{"_process":284}],277:[function(require,module,exports){
 exports.pbkdf2 = require('./lib/async')
 exports.pbkdf2Sync = require('./lib/sync')
 
-},{"./lib/async":276,"./lib/sync":279}],276:[function(require,module,exports){
+},{"./lib/async":278,"./lib/sync":281}],278:[function(require,module,exports){
 (function (process,global){
 var checkParameters = require('./precondition')
 var defaultEncoding = require('./default-encoding')
@@ -74924,7 +75331,7 @@ module.exports = function (password, salt, iterations, keylen, digest, callback)
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./default-encoding":277,"./precondition":278,"./sync":279,"_process":282,"safe-buffer":341}],277:[function(require,module,exports){
+},{"./default-encoding":279,"./precondition":280,"./sync":281,"_process":284,"safe-buffer":343}],279:[function(require,module,exports){
 (function (process){
 var defaultEncoding
 /* istanbul ignore next */
@@ -74938,7 +75345,7 @@ if (process.browser) {
 module.exports = defaultEncoding
 
 }).call(this,require('_process'))
-},{"_process":282}],278:[function(require,module,exports){
+},{"_process":284}],280:[function(require,module,exports){
 (function (Buffer){
 var MAX_ALLOC = Math.pow(2, 30) - 1 // default in iojs
 
@@ -74970,7 +75377,7 @@ module.exports = function (password, salt, iterations, keylen) {
 }
 
 }).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":218}],279:[function(require,module,exports){
+},{"../../is-buffer/index.js":218}],281:[function(require,module,exports){
 var md5 = require('create-hash/md5')
 var RIPEMD160 = require('ripemd160')
 var sha = require('sha.js')
@@ -75076,7 +75483,7 @@ function pbkdf2 (password, salt, iterations, keylen, digest) {
 
 module.exports = pbkdf2
 
-},{"./default-encoding":277,"./precondition":278,"create-hash/md5":131,"ripemd160":340,"safe-buffer":341,"sha.js":344}],280:[function(require,module,exports){
+},{"./default-encoding":279,"./precondition":280,"create-hash/md5":131,"ripemd160":342,"safe-buffer":343,"sha.js":346}],282:[function(require,module,exports){
 (function (process){
 // Generated by CoffeeScript 1.12.2
 (function() {
@@ -75116,7 +75523,7 @@ module.exports = pbkdf2
 
 
 }).call(this,require('_process'))
-},{"_process":282}],281:[function(require,module,exports){
+},{"_process":284}],283:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -75164,7 +75571,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 
 
 }).call(this,require('_process'))
-},{"_process":282}],282:[function(require,module,exports){
+},{"_process":284}],284:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -75350,12 +75757,12 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],283:[function(require,module,exports){
+},{}],285:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./lib')
 
-},{"./lib":288}],284:[function(require,module,exports){
+},{"./lib":290}],286:[function(require,module,exports){
 'use strict';
 
 var asap = require('asap/raw');
@@ -75570,7 +75977,7 @@ function doResolve(fn, promise) {
   }
 }
 
-},{"asap/raw":55}],285:[function(require,module,exports){
+},{"asap/raw":55}],287:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./core.js');
@@ -75585,7 +75992,7 @@ Promise.prototype.done = function (onFulfilled, onRejected) {
   });
 };
 
-},{"./core.js":284}],286:[function(require,module,exports){
+},{"./core.js":286}],288:[function(require,module,exports){
 'use strict';
 
 //This file contains the ES6 extensions to the core Promises/A+ API
@@ -75694,7 +76101,7 @@ Promise.prototype['catch'] = function (onRejected) {
   return this.then(null, onRejected);
 };
 
-},{"./core.js":284}],287:[function(require,module,exports){
+},{"./core.js":286}],289:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./core.js');
@@ -75712,7 +76119,7 @@ Promise.prototype['finally'] = function (f) {
   });
 };
 
-},{"./core.js":284}],288:[function(require,module,exports){
+},{"./core.js":286}],290:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./core.js');
@@ -75722,7 +76129,7 @@ require('./es6-extensions.js');
 require('./node-extensions.js');
 require('./synchronous.js');
 
-},{"./core.js":284,"./done.js":285,"./es6-extensions.js":286,"./finally.js":287,"./node-extensions.js":289,"./synchronous.js":290}],289:[function(require,module,exports){
+},{"./core.js":286,"./done.js":287,"./es6-extensions.js":288,"./finally.js":289,"./node-extensions.js":291,"./synchronous.js":292}],291:[function(require,module,exports){
 'use strict';
 
 // This file contains then/promise specific extensions that are only useful
@@ -75854,7 +76261,7 @@ Promise.prototype.nodeify = function (callback, ctx) {
   });
 };
 
-},{"./core.js":284,"asap":54}],290:[function(require,module,exports){
+},{"./core.js":286,"asap":54}],292:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./core.js');
@@ -75918,9 +76325,9 @@ Promise.disableSynchronous = function() {
   Promise.prototype.getState = undefined;
 };
 
-},{"./core.js":284}],291:[function(require,module,exports){
+},{"./core.js":286}],293:[function(require,module,exports){
 module.exports=["ac","com.ac","edu.ac","gov.ac","net.ac","mil.ac","org.ac","ad","nom.ad","ae","co.ae","net.ae","org.ae","sch.ae","ac.ae","gov.ae","mil.ae","aero","accident-investigation.aero","accident-prevention.aero","aerobatic.aero","aeroclub.aero","aerodrome.aero","agents.aero","aircraft.aero","airline.aero","airport.aero","air-surveillance.aero","airtraffic.aero","air-traffic-control.aero","ambulance.aero","amusement.aero","association.aero","author.aero","ballooning.aero","broker.aero","caa.aero","cargo.aero","catering.aero","certification.aero","championship.aero","charter.aero","civilaviation.aero","club.aero","conference.aero","consultant.aero","consulting.aero","control.aero","council.aero","crew.aero","design.aero","dgca.aero","educator.aero","emergency.aero","engine.aero","engineer.aero","entertainment.aero","equipment.aero","exchange.aero","express.aero","federation.aero","flight.aero","freight.aero","fuel.aero","gliding.aero","government.aero","groundhandling.aero","group.aero","hanggliding.aero","homebuilt.aero","insurance.aero","journal.aero","journalist.aero","leasing.aero","logistics.aero","magazine.aero","maintenance.aero","media.aero","microlight.aero","modelling.aero","navigation.aero","parachuting.aero","paragliding.aero","passenger-association.aero","pilot.aero","press.aero","production.aero","recreation.aero","repbody.aero","res.aero","research.aero","rotorcraft.aero","safety.aero","scientist.aero","services.aero","show.aero","skydiving.aero","software.aero","student.aero","trader.aero","trading.aero","trainer.aero","union.aero","workinggroup.aero","works.aero","af","gov.af","com.af","org.af","net.af","edu.af","ag","com.ag","org.ag","net.ag","co.ag","nom.ag","ai","off.ai","com.ai","net.ai","org.ai","al","com.al","edu.al","gov.al","mil.al","net.al","org.al","am","ao","ed.ao","gv.ao","og.ao","co.ao","pb.ao","it.ao","aq","ar","com.ar","edu.ar","gob.ar","gov.ar","int.ar","mil.ar","musica.ar","net.ar","org.ar","tur.ar","arpa","e164.arpa","in-addr.arpa","ip6.arpa","iris.arpa","uri.arpa","urn.arpa","as","gov.as","asia","at","ac.at","co.at","gv.at","or.at","au","com.au","net.au","org.au","edu.au","gov.au","asn.au","id.au","info.au","conf.au","oz.au","act.au","nsw.au","nt.au","qld.au","sa.au","tas.au","vic.au","wa.au","act.edu.au","nsw.edu.au","nt.edu.au","qld.edu.au","sa.edu.au","tas.edu.au","vic.edu.au","wa.edu.au","qld.gov.au","sa.gov.au","tas.gov.au","vic.gov.au","wa.gov.au","aw","com.aw","ax","az","com.az","net.az","int.az","gov.az","org.az","edu.az","info.az","pp.az","mil.az","name.az","pro.az","biz.az","ba","com.ba","edu.ba","gov.ba","mil.ba","net.ba","org.ba","bb","biz.bb","co.bb","com.bb","edu.bb","gov.bb","info.bb","net.bb","org.bb","store.bb","tv.bb","*.bd","be","ac.be","bf","gov.bf","bg","a.bg","b.bg","c.bg","d.bg","e.bg","f.bg","g.bg","h.bg","i.bg","j.bg","k.bg","l.bg","m.bg","n.bg","o.bg","p.bg","q.bg","r.bg","s.bg","t.bg","u.bg","v.bg","w.bg","x.bg","y.bg","z.bg","0.bg","1.bg","2.bg","3.bg","4.bg","5.bg","6.bg","7.bg","8.bg","9.bg","bh","com.bh","edu.bh","net.bh","org.bh","gov.bh","bi","co.bi","com.bi","edu.bi","or.bi","org.bi","biz","bj","asso.bj","barreau.bj","gouv.bj","bm","com.bm","edu.bm","gov.bm","net.bm","org.bm","bn","com.bn","edu.bn","gov.bn","net.bn","org.bn","bo","com.bo","edu.bo","gob.bo","int.bo","org.bo","net.bo","mil.bo","tv.bo","web.bo","academia.bo","agro.bo","arte.bo","blog.bo","bolivia.bo","ciencia.bo","cooperativa.bo","democracia.bo","deporte.bo","ecologia.bo","economia.bo","empresa.bo","indigena.bo","industria.bo","info.bo","medicina.bo","movimiento.bo","musica.bo","natural.bo","nombre.bo","noticias.bo","patria.bo","politica.bo","profesional.bo","plurinacional.bo","pueblo.bo","revista.bo","salud.bo","tecnologia.bo","tksat.bo","transporte.bo","wiki.bo","br","9guacu.br","abc.br","adm.br","adv.br","agr.br","aju.br","am.br","anani.br","aparecida.br","arq.br","art.br","ato.br","b.br","barueri.br","belem.br","bhz.br","bio.br","blog.br","bmd.br","boavista.br","bsb.br","campinagrande.br","campinas.br","caxias.br","cim.br","cng.br","cnt.br","com.br","contagem.br","coop.br","cri.br","cuiaba.br","curitiba.br","def.br","ecn.br","eco.br","edu.br","emp.br","eng.br","esp.br","etc.br","eti.br","far.br","feira.br","flog.br","floripa.br","fm.br","fnd.br","fortal.br","fot.br","foz.br","fst.br","g12.br","ggf.br","goiania.br","gov.br","ac.gov.br","al.gov.br","am.gov.br","ap.gov.br","ba.gov.br","ce.gov.br","df.gov.br","es.gov.br","go.gov.br","ma.gov.br","mg.gov.br","ms.gov.br","mt.gov.br","pa.gov.br","pb.gov.br","pe.gov.br","pi.gov.br","pr.gov.br","rj.gov.br","rn.gov.br","ro.gov.br","rr.gov.br","rs.gov.br","sc.gov.br","se.gov.br","sp.gov.br","to.gov.br","gru.br","imb.br","ind.br","inf.br","jab.br","jampa.br","jdf.br","joinville.br","jor.br","jus.br","leg.br","lel.br","londrina.br","macapa.br","maceio.br","manaus.br","maringa.br","mat.br","med.br","mil.br","morena.br","mp.br","mus.br","natal.br","net.br","niteroi.br","*.nom.br","not.br","ntr.br","odo.br","ong.br","org.br","osasco.br","palmas.br","poa.br","ppg.br","pro.br","psc.br","psi.br","pvh.br","qsl.br","radio.br","rec.br","recife.br","ribeirao.br","rio.br","riobranco.br","riopreto.br","salvador.br","sampa.br","santamaria.br","santoandre.br","saobernardo.br","saogonca.br","sjc.br","slg.br","slz.br","sorocaba.br","srv.br","taxi.br","teo.br","the.br","tmp.br","trd.br","tur.br","tv.br","udi.br","vet.br","vix.br","vlog.br","wiki.br","zlg.br","bs","com.bs","net.bs","org.bs","edu.bs","gov.bs","bt","com.bt","edu.bt","gov.bt","net.bt","org.bt","bv","bw","co.bw","org.bw","by","gov.by","mil.by","com.by","of.by","bz","com.bz","net.bz","org.bz","edu.bz","gov.bz","ca","ab.ca","bc.ca","mb.ca","nb.ca","nf.ca","nl.ca","ns.ca","nt.ca","nu.ca","on.ca","pe.ca","qc.ca","sk.ca","yk.ca","gc.ca","cat","cc","cd","gov.cd","cf","cg","ch","ci","org.ci","or.ci","com.ci","co.ci","edu.ci","ed.ci","ac.ci","net.ci","go.ci","asso.ci","aéroport.ci","int.ci","presse.ci","md.ci","gouv.ci","*.ck","!www.ck","cl","gov.cl","gob.cl","co.cl","mil.cl","cm","co.cm","com.cm","gov.cm","net.cm","cn","ac.cn","com.cn","edu.cn","gov.cn","net.cn","org.cn","mil.cn","公司.cn","网络.cn","網絡.cn","ah.cn","bj.cn","cq.cn","fj.cn","gd.cn","gs.cn","gz.cn","gx.cn","ha.cn","hb.cn","he.cn","hi.cn","hl.cn","hn.cn","jl.cn","js.cn","jx.cn","ln.cn","nm.cn","nx.cn","qh.cn","sc.cn","sd.cn","sh.cn","sn.cn","sx.cn","tj.cn","xj.cn","xz.cn","yn.cn","zj.cn","hk.cn","mo.cn","tw.cn","co","arts.co","com.co","edu.co","firm.co","gov.co","info.co","int.co","mil.co","net.co","nom.co","org.co","rec.co","web.co","com","coop","cr","ac.cr","co.cr","ed.cr","fi.cr","go.cr","or.cr","sa.cr","cu","com.cu","edu.cu","org.cu","net.cu","gov.cu","inf.cu","cv","cw","com.cw","edu.cw","net.cw","org.cw","cx","gov.cx","cy","ac.cy","biz.cy","com.cy","ekloges.cy","gov.cy","ltd.cy","name.cy","net.cy","org.cy","parliament.cy","press.cy","pro.cy","tm.cy","cz","de","dj","dk","dm","com.dm","net.dm","org.dm","edu.dm","gov.dm","do","art.do","com.do","edu.do","gob.do","gov.do","mil.do","net.do","org.do","sld.do","web.do","dz","com.dz","org.dz","net.dz","gov.dz","edu.dz","asso.dz","pol.dz","art.dz","ec","com.ec","info.ec","net.ec","fin.ec","k12.ec","med.ec","pro.ec","org.ec","edu.ec","gov.ec","gob.ec","mil.ec","edu","ee","edu.ee","gov.ee","riik.ee","lib.ee","med.ee","com.ee","pri.ee","aip.ee","org.ee","fie.ee","eg","com.eg","edu.eg","eun.eg","gov.eg","mil.eg","name.eg","net.eg","org.eg","sci.eg","*.er","es","com.es","nom.es","org.es","gob.es","edu.es","et","com.et","gov.et","org.et","edu.et","biz.et","name.et","info.et","net.et","eu","fi","aland.fi","*.fj","*.fk","fm","fo","fr","com.fr","asso.fr","nom.fr","prd.fr","presse.fr","tm.fr","aeroport.fr","assedic.fr","avocat.fr","avoues.fr","cci.fr","chambagri.fr","chirurgiens-dentistes.fr","experts-comptables.fr","geometre-expert.fr","gouv.fr","greta.fr","huissier-justice.fr","medecin.fr","notaires.fr","pharmacien.fr","port.fr","veterinaire.fr","ga","gb","gd","ge","com.ge","edu.ge","gov.ge","org.ge","mil.ge","net.ge","pvt.ge","gf","gg","co.gg","net.gg","org.gg","gh","com.gh","edu.gh","gov.gh","org.gh","mil.gh","gi","com.gi","ltd.gi","gov.gi","mod.gi","edu.gi","org.gi","gl","co.gl","com.gl","edu.gl","net.gl","org.gl","gm","gn","ac.gn","com.gn","edu.gn","gov.gn","org.gn","net.gn","gov","gp","com.gp","net.gp","mobi.gp","edu.gp","org.gp","asso.gp","gq","gr","com.gr","edu.gr","net.gr","org.gr","gov.gr","gs","gt","com.gt","edu.gt","gob.gt","ind.gt","mil.gt","net.gt","org.gt","gu","com.gu","edu.gu","gov.gu","guam.gu","info.gu","net.gu","org.gu","web.gu","gw","gy","co.gy","com.gy","edu.gy","gov.gy","net.gy","org.gy","hk","com.hk","edu.hk","gov.hk","idv.hk","net.hk","org.hk","公司.hk","教育.hk","敎育.hk","政府.hk","個人.hk","个人.hk","箇人.hk","網络.hk","网络.hk","组織.hk","網絡.hk","网絡.hk","组织.hk","組織.hk","組织.hk","hm","hn","com.hn","edu.hn","org.hn","net.hn","mil.hn","gob.hn","hr","iz.hr","from.hr","name.hr","com.hr","ht","com.ht","shop.ht","firm.ht","info.ht","adult.ht","net.ht","pro.ht","org.ht","med.ht","art.ht","coop.ht","pol.ht","asso.ht","edu.ht","rel.ht","gouv.ht","perso.ht","hu","co.hu","info.hu","org.hu","priv.hu","sport.hu","tm.hu","2000.hu","agrar.hu","bolt.hu","casino.hu","city.hu","erotica.hu","erotika.hu","film.hu","forum.hu","games.hu","hotel.hu","ingatlan.hu","jogasz.hu","konyvelo.hu","lakas.hu","media.hu","news.hu","reklam.hu","sex.hu","shop.hu","suli.hu","szex.hu","tozsde.hu","utazas.hu","video.hu","id","ac.id","biz.id","co.id","desa.id","go.id","mil.id","my.id","net.id","or.id","ponpes.id","sch.id","web.id","ie","gov.ie","il","ac.il","co.il","gov.il","idf.il","k12.il","muni.il","net.il","org.il","im","ac.im","co.im","com.im","ltd.co.im","net.im","org.im","plc.co.im","tt.im","tv.im","in","co.in","firm.in","net.in","org.in","gen.in","ind.in","nic.in","ac.in","edu.in","res.in","gov.in","mil.in","info","int","eu.int","io","com.io","iq","gov.iq","edu.iq","mil.iq","com.iq","org.iq","net.iq","ir","ac.ir","co.ir","gov.ir","id.ir","net.ir","org.ir","sch.ir","ایران.ir","ايران.ir","is","net.is","com.is","edu.is","gov.is","org.is","int.is","it","gov.it","edu.it","abr.it","abruzzo.it","aosta-valley.it","aostavalley.it","bas.it","basilicata.it","cal.it","calabria.it","cam.it","campania.it","emilia-romagna.it","emiliaromagna.it","emr.it","friuli-v-giulia.it","friuli-ve-giulia.it","friuli-vegiulia.it","friuli-venezia-giulia.it","friuli-veneziagiulia.it","friuli-vgiulia.it","friuliv-giulia.it","friulive-giulia.it","friulivegiulia.it","friulivenezia-giulia.it","friuliveneziagiulia.it","friulivgiulia.it","fvg.it","laz.it","lazio.it","lig.it","liguria.it","lom.it","lombardia.it","lombardy.it","lucania.it","mar.it","marche.it","mol.it","molise.it","piedmont.it","piemonte.it","pmn.it","pug.it","puglia.it","sar.it","sardegna.it","sardinia.it","sic.it","sicilia.it","sicily.it","taa.it","tos.it","toscana.it","trentin-sud-tirol.it","trentin-süd-tirol.it","trentin-sudtirol.it","trentin-südtirol.it","trentin-sued-tirol.it","trentin-suedtirol.it","trentino-a-adige.it","trentino-aadige.it","trentino-alto-adige.it","trentino-altoadige.it","trentino-s-tirol.it","trentino-stirol.it","trentino-sud-tirol.it","trentino-süd-tirol.it","trentino-sudtirol.it","trentino-südtirol.it","trentino-sued-tirol.it","trentino-suedtirol.it","trentino.it","trentinoa-adige.it","trentinoaadige.it","trentinoalto-adige.it","trentinoaltoadige.it","trentinos-tirol.it","trentinostirol.it","trentinosud-tirol.it","trentinosüd-tirol.it","trentinosudtirol.it","trentinosüdtirol.it","trentinosued-tirol.it","trentinosuedtirol.it","trentinsud-tirol.it","trentinsüd-tirol.it","trentinsudtirol.it","trentinsüdtirol.it","trentinsued-tirol.it","trentinsuedtirol.it","tuscany.it","umb.it","umbria.it","val-d-aosta.it","val-daosta.it","vald-aosta.it","valdaosta.it","valle-aosta.it","valle-d-aosta.it","valle-daosta.it","valleaosta.it","valled-aosta.it","valledaosta.it","vallee-aoste.it","vallée-aoste.it","vallee-d-aoste.it","vallée-d-aoste.it","valleeaoste.it","valléeaoste.it","valleedaoste.it","valléedaoste.it","vao.it","vda.it","ven.it","veneto.it","ag.it","agrigento.it","al.it","alessandria.it","alto-adige.it","altoadige.it","an.it","ancona.it","andria-barletta-trani.it","andria-trani-barletta.it","andriabarlettatrani.it","andriatranibarletta.it","ao.it","aosta.it","aoste.it","ap.it","aq.it","aquila.it","ar.it","arezzo.it","ascoli-piceno.it","ascolipiceno.it","asti.it","at.it","av.it","avellino.it","ba.it","balsan-sudtirol.it","balsan-südtirol.it","balsan-suedtirol.it","balsan.it","bari.it","barletta-trani-andria.it","barlettatraniandria.it","belluno.it","benevento.it","bergamo.it","bg.it","bi.it","biella.it","bl.it","bn.it","bo.it","bologna.it","bolzano-altoadige.it","bolzano.it","bozen-sudtirol.it","bozen-südtirol.it","bozen-suedtirol.it","bozen.it","br.it","brescia.it","brindisi.it","bs.it","bt.it","bulsan-sudtirol.it","bulsan-südtirol.it","bulsan-suedtirol.it","bulsan.it","bz.it","ca.it","cagliari.it","caltanissetta.it","campidano-medio.it","campidanomedio.it","campobasso.it","carbonia-iglesias.it","carboniaiglesias.it","carrara-massa.it","carraramassa.it","caserta.it","catania.it","catanzaro.it","cb.it","ce.it","cesena-forli.it","cesena-forlì.it","cesenaforli.it","cesenaforlì.it","ch.it","chieti.it","ci.it","cl.it","cn.it","co.it","como.it","cosenza.it","cr.it","cremona.it","crotone.it","cs.it","ct.it","cuneo.it","cz.it","dell-ogliastra.it","dellogliastra.it","en.it","enna.it","fc.it","fe.it","fermo.it","ferrara.it","fg.it","fi.it","firenze.it","florence.it","fm.it","foggia.it","forli-cesena.it","forlì-cesena.it","forlicesena.it","forlìcesena.it","fr.it","frosinone.it","ge.it","genoa.it","genova.it","go.it","gorizia.it","gr.it","grosseto.it","iglesias-carbonia.it","iglesiascarbonia.it","im.it","imperia.it","is.it","isernia.it","kr.it","la-spezia.it","laquila.it","laspezia.it","latina.it","lc.it","le.it","lecce.it","lecco.it","li.it","livorno.it","lo.it","lodi.it","lt.it","lu.it","lucca.it","macerata.it","mantova.it","massa-carrara.it","massacarrara.it","matera.it","mb.it","mc.it","me.it","medio-campidano.it","mediocampidano.it","messina.it","mi.it","milan.it","milano.it","mn.it","mo.it","modena.it","monza-brianza.it","monza-e-della-brianza.it","monza.it","monzabrianza.it","monzaebrianza.it","monzaedellabrianza.it","ms.it","mt.it","na.it","naples.it","napoli.it","no.it","novara.it","nu.it","nuoro.it","og.it","ogliastra.it","olbia-tempio.it","olbiatempio.it","or.it","oristano.it","ot.it","pa.it","padova.it","padua.it","palermo.it","parma.it","pavia.it","pc.it","pd.it","pe.it","perugia.it","pesaro-urbino.it","pesarourbino.it","pescara.it","pg.it","pi.it","piacenza.it","pisa.it","pistoia.it","pn.it","po.it","pordenone.it","potenza.it","pr.it","prato.it","pt.it","pu.it","pv.it","pz.it","ra.it","ragusa.it","ravenna.it","rc.it","re.it","reggio-calabria.it","reggio-emilia.it","reggiocalabria.it","reggioemilia.it","rg.it","ri.it","rieti.it","rimini.it","rm.it","rn.it","ro.it","roma.it","rome.it","rovigo.it","sa.it","salerno.it","sassari.it","savona.it","si.it","siena.it","siracusa.it","so.it","sondrio.it","sp.it","sr.it","ss.it","suedtirol.it","südtirol.it","sv.it","ta.it","taranto.it","te.it","tempio-olbia.it","tempioolbia.it","teramo.it","terni.it","tn.it","to.it","torino.it","tp.it","tr.it","trani-andria-barletta.it","trani-barletta-andria.it","traniandriabarletta.it","tranibarlettaandria.it","trapani.it","trento.it","treviso.it","trieste.it","ts.it","turin.it","tv.it","ud.it","udine.it","urbino-pesaro.it","urbinopesaro.it","va.it","varese.it","vb.it","vc.it","ve.it","venezia.it","venice.it","verbania.it","vercelli.it","verona.it","vi.it","vibo-valentia.it","vibovalentia.it","vicenza.it","viterbo.it","vr.it","vs.it","vt.it","vv.it","je","co.je","net.je","org.je","*.jm","jo","com.jo","org.jo","net.jo","edu.jo","sch.jo","gov.jo","mil.jo","name.jo","jobs","jp","ac.jp","ad.jp","co.jp","ed.jp","go.jp","gr.jp","lg.jp","ne.jp","or.jp","aichi.jp","akita.jp","aomori.jp","chiba.jp","ehime.jp","fukui.jp","fukuoka.jp","fukushima.jp","gifu.jp","gunma.jp","hiroshima.jp","hokkaido.jp","hyogo.jp","ibaraki.jp","ishikawa.jp","iwate.jp","kagawa.jp","kagoshima.jp","kanagawa.jp","kochi.jp","kumamoto.jp","kyoto.jp","mie.jp","miyagi.jp","miyazaki.jp","nagano.jp","nagasaki.jp","nara.jp","niigata.jp","oita.jp","okayama.jp","okinawa.jp","osaka.jp","saga.jp","saitama.jp","shiga.jp","shimane.jp","shizuoka.jp","tochigi.jp","tokushima.jp","tokyo.jp","tottori.jp","toyama.jp","wakayama.jp","yamagata.jp","yamaguchi.jp","yamanashi.jp","栃木.jp","愛知.jp","愛媛.jp","兵庫.jp","熊本.jp","茨城.jp","北海道.jp","千葉.jp","和歌山.jp","長崎.jp","長野.jp","新潟.jp","青森.jp","静岡.jp","東京.jp","石川.jp","埼玉.jp","三重.jp","京都.jp","佐賀.jp","大分.jp","大阪.jp","奈良.jp","宮城.jp","宮崎.jp","富山.jp","山口.jp","山形.jp","山梨.jp","岩手.jp","岐阜.jp","岡山.jp","島根.jp","広島.jp","徳島.jp","沖縄.jp","滋賀.jp","神奈川.jp","福井.jp","福岡.jp","福島.jp","秋田.jp","群馬.jp","香川.jp","高知.jp","鳥取.jp","鹿児島.jp","*.kawasaki.jp","*.kitakyushu.jp","*.kobe.jp","*.nagoya.jp","*.sapporo.jp","*.sendai.jp","*.yokohama.jp","!city.kawasaki.jp","!city.kitakyushu.jp","!city.kobe.jp","!city.nagoya.jp","!city.sapporo.jp","!city.sendai.jp","!city.yokohama.jp","aisai.aichi.jp","ama.aichi.jp","anjo.aichi.jp","asuke.aichi.jp","chiryu.aichi.jp","chita.aichi.jp","fuso.aichi.jp","gamagori.aichi.jp","handa.aichi.jp","hazu.aichi.jp","hekinan.aichi.jp","higashiura.aichi.jp","ichinomiya.aichi.jp","inazawa.aichi.jp","inuyama.aichi.jp","isshiki.aichi.jp","iwakura.aichi.jp","kanie.aichi.jp","kariya.aichi.jp","kasugai.aichi.jp","kira.aichi.jp","kiyosu.aichi.jp","komaki.aichi.jp","konan.aichi.jp","kota.aichi.jp","mihama.aichi.jp","miyoshi.aichi.jp","nishio.aichi.jp","nisshin.aichi.jp","obu.aichi.jp","oguchi.aichi.jp","oharu.aichi.jp","okazaki.aichi.jp","owariasahi.aichi.jp","seto.aichi.jp","shikatsu.aichi.jp","shinshiro.aichi.jp","shitara.aichi.jp","tahara.aichi.jp","takahama.aichi.jp","tobishima.aichi.jp","toei.aichi.jp","togo.aichi.jp","tokai.aichi.jp","tokoname.aichi.jp","toyoake.aichi.jp","toyohashi.aichi.jp","toyokawa.aichi.jp","toyone.aichi.jp","toyota.aichi.jp","tsushima.aichi.jp","yatomi.aichi.jp","akita.akita.jp","daisen.akita.jp","fujisato.akita.jp","gojome.akita.jp","hachirogata.akita.jp","happou.akita.jp","higashinaruse.akita.jp","honjo.akita.jp","honjyo.akita.jp","ikawa.akita.jp","kamikoani.akita.jp","kamioka.akita.jp","katagami.akita.jp","kazuno.akita.jp","kitaakita.akita.jp","kosaka.akita.jp","kyowa.akita.jp","misato.akita.jp","mitane.akita.jp","moriyoshi.akita.jp","nikaho.akita.jp","noshiro.akita.jp","odate.akita.jp","oga.akita.jp","ogata.akita.jp","semboku.akita.jp","yokote.akita.jp","yurihonjo.akita.jp","aomori.aomori.jp","gonohe.aomori.jp","hachinohe.aomori.jp","hashikami.aomori.jp","hiranai.aomori.jp","hirosaki.aomori.jp","itayanagi.aomori.jp","kuroishi.aomori.jp","misawa.aomori.jp","mutsu.aomori.jp","nakadomari.aomori.jp","noheji.aomori.jp","oirase.aomori.jp","owani.aomori.jp","rokunohe.aomori.jp","sannohe.aomori.jp","shichinohe.aomori.jp","shingo.aomori.jp","takko.aomori.jp","towada.aomori.jp","tsugaru.aomori.jp","tsuruta.aomori.jp","abiko.chiba.jp","asahi.chiba.jp","chonan.chiba.jp","chosei.chiba.jp","choshi.chiba.jp","chuo.chiba.jp","funabashi.chiba.jp","futtsu.chiba.jp","hanamigawa.chiba.jp","ichihara.chiba.jp","ichikawa.chiba.jp","ichinomiya.chiba.jp","inzai.chiba.jp","isumi.chiba.jp","kamagaya.chiba.jp","kamogawa.chiba.jp","kashiwa.chiba.jp","katori.chiba.jp","katsuura.chiba.jp","kimitsu.chiba.jp","kisarazu.chiba.jp","kozaki.chiba.jp","kujukuri.chiba.jp","kyonan.chiba.jp","matsudo.chiba.jp","midori.chiba.jp","mihama.chiba.jp","minamiboso.chiba.jp","mobara.chiba.jp","mutsuzawa.chiba.jp","nagara.chiba.jp","nagareyama.chiba.jp","narashino.chiba.jp","narita.chiba.jp","noda.chiba.jp","oamishirasato.chiba.jp","omigawa.chiba.jp","onjuku.chiba.jp","otaki.chiba.jp","sakae.chiba.jp","sakura.chiba.jp","shimofusa.chiba.jp","shirako.chiba.jp","shiroi.chiba.jp","shisui.chiba.jp","sodegaura.chiba.jp","sosa.chiba.jp","tako.chiba.jp","tateyama.chiba.jp","togane.chiba.jp","tohnosho.chiba.jp","tomisato.chiba.jp","urayasu.chiba.jp","yachimata.chiba.jp","yachiyo.chiba.jp","yokaichiba.chiba.jp","yokoshibahikari.chiba.jp","yotsukaido.chiba.jp","ainan.ehime.jp","honai.ehime.jp","ikata.ehime.jp","imabari.ehime.jp","iyo.ehime.jp","kamijima.ehime.jp","kihoku.ehime.jp","kumakogen.ehime.jp","masaki.ehime.jp","matsuno.ehime.jp","matsuyama.ehime.jp","namikata.ehime.jp","niihama.ehime.jp","ozu.ehime.jp","saijo.ehime.jp","seiyo.ehime.jp","shikokuchuo.ehime.jp","tobe.ehime.jp","toon.ehime.jp","uchiko.ehime.jp","uwajima.ehime.jp","yawatahama.ehime.jp","echizen.fukui.jp","eiheiji.fukui.jp","fukui.fukui.jp","ikeda.fukui.jp","katsuyama.fukui.jp","mihama.fukui.jp","minamiechizen.fukui.jp","obama.fukui.jp","ohi.fukui.jp","ono.fukui.jp","sabae.fukui.jp","sakai.fukui.jp","takahama.fukui.jp","tsuruga.fukui.jp","wakasa.fukui.jp","ashiya.fukuoka.jp","buzen.fukuoka.jp","chikugo.fukuoka.jp","chikuho.fukuoka.jp","chikujo.fukuoka.jp","chikushino.fukuoka.jp","chikuzen.fukuoka.jp","chuo.fukuoka.jp","dazaifu.fukuoka.jp","fukuchi.fukuoka.jp","hakata.fukuoka.jp","higashi.fukuoka.jp","hirokawa.fukuoka.jp","hisayama.fukuoka.jp","iizuka.fukuoka.jp","inatsuki.fukuoka.jp","kaho.fukuoka.jp","kasuga.fukuoka.jp","kasuya.fukuoka.jp","kawara.fukuoka.jp","keisen.fukuoka.jp","koga.fukuoka.jp","kurate.fukuoka.jp","kurogi.fukuoka.jp","kurume.fukuoka.jp","minami.fukuoka.jp","miyako.fukuoka.jp","miyama.fukuoka.jp","miyawaka.fukuoka.jp","mizumaki.fukuoka.jp","munakata.fukuoka.jp","nakagawa.fukuoka.jp","nakama.fukuoka.jp","nishi.fukuoka.jp","nogata.fukuoka.jp","ogori.fukuoka.jp","okagaki.fukuoka.jp","okawa.fukuoka.jp","oki.fukuoka.jp","omuta.fukuoka.jp","onga.fukuoka.jp","onojo.fukuoka.jp","oto.fukuoka.jp","saigawa.fukuoka.jp","sasaguri.fukuoka.jp","shingu.fukuoka.jp","shinyoshitomi.fukuoka.jp","shonai.fukuoka.jp","soeda.fukuoka.jp","sue.fukuoka.jp","tachiarai.fukuoka.jp","tagawa.fukuoka.jp","takata.fukuoka.jp","toho.fukuoka.jp","toyotsu.fukuoka.jp","tsuiki.fukuoka.jp","ukiha.fukuoka.jp","umi.fukuoka.jp","usui.fukuoka.jp","yamada.fukuoka.jp","yame.fukuoka.jp","yanagawa.fukuoka.jp","yukuhashi.fukuoka.jp","aizubange.fukushima.jp","aizumisato.fukushima.jp","aizuwakamatsu.fukushima.jp","asakawa.fukushima.jp","bandai.fukushima.jp","date.fukushima.jp","fukushima.fukushima.jp","furudono.fukushima.jp","futaba.fukushima.jp","hanawa.fukushima.jp","higashi.fukushima.jp","hirata.fukushima.jp","hirono.fukushima.jp","iitate.fukushima.jp","inawashiro.fukushima.jp","ishikawa.fukushima.jp","iwaki.fukushima.jp","izumizaki.fukushima.jp","kagamiishi.fukushima.jp","kaneyama.fukushima.jp","kawamata.fukushima.jp","kitakata.fukushima.jp","kitashiobara.fukushima.jp","koori.fukushima.jp","koriyama.fukushima.jp","kunimi.fukushima.jp","miharu.fukushima.jp","mishima.fukushima.jp","namie.fukushima.jp","nango.fukushima.jp","nishiaizu.fukushima.jp","nishigo.fukushima.jp","okuma.fukushima.jp","omotego.fukushima.jp","ono.fukushima.jp","otama.fukushima.jp","samegawa.fukushima.jp","shimogo.fukushima.jp","shirakawa.fukushima.jp","showa.fukushima.jp","soma.fukushima.jp","sukagawa.fukushima.jp","taishin.fukushima.jp","tamakawa.fukushima.jp","tanagura.fukushima.jp","tenei.fukushima.jp","yabuki.fukushima.jp","yamato.fukushima.jp","yamatsuri.fukushima.jp","yanaizu.fukushima.jp","yugawa.fukushima.jp","anpachi.gifu.jp","ena.gifu.jp","gifu.gifu.jp","ginan.gifu.jp","godo.gifu.jp","gujo.gifu.jp","hashima.gifu.jp","hichiso.gifu.jp","hida.gifu.jp","higashishirakawa.gifu.jp","ibigawa.gifu.jp","ikeda.gifu.jp","kakamigahara.gifu.jp","kani.gifu.jp","kasahara.gifu.jp","kasamatsu.gifu.jp","kawaue.gifu.jp","kitagata.gifu.jp","mino.gifu.jp","minokamo.gifu.jp","mitake.gifu.jp","mizunami.gifu.jp","motosu.gifu.jp","nakatsugawa.gifu.jp","ogaki.gifu.jp","sakahogi.gifu.jp","seki.gifu.jp","sekigahara.gifu.jp","shirakawa.gifu.jp","tajimi.gifu.jp","takayama.gifu.jp","tarui.gifu.jp","toki.gifu.jp","tomika.gifu.jp","wanouchi.gifu.jp","yamagata.gifu.jp","yaotsu.gifu.jp","yoro.gifu.jp","annaka.gunma.jp","chiyoda.gunma.jp","fujioka.gunma.jp","higashiagatsuma.gunma.jp","isesaki.gunma.jp","itakura.gunma.jp","kanna.gunma.jp","kanra.gunma.jp","katashina.gunma.jp","kawaba.gunma.jp","kiryu.gunma.jp","kusatsu.gunma.jp","maebashi.gunma.jp","meiwa.gunma.jp","midori.gunma.jp","minakami.gunma.jp","naganohara.gunma.jp","nakanojo.gunma.jp","nanmoku.gunma.jp","numata.gunma.jp","oizumi.gunma.jp","ora.gunma.jp","ota.gunma.jp","shibukawa.gunma.jp","shimonita.gunma.jp","shinto.gunma.jp","showa.gunma.jp","takasaki.gunma.jp","takayama.gunma.jp","tamamura.gunma.jp","tatebayashi.gunma.jp","tomioka.gunma.jp","tsukiyono.gunma.jp","tsumagoi.gunma.jp","ueno.gunma.jp","yoshioka.gunma.jp","asaminami.hiroshima.jp","daiwa.hiroshima.jp","etajima.hiroshima.jp","fuchu.hiroshima.jp","fukuyama.hiroshima.jp","hatsukaichi.hiroshima.jp","higashihiroshima.hiroshima.jp","hongo.hiroshima.jp","jinsekikogen.hiroshima.jp","kaita.hiroshima.jp","kui.hiroshima.jp","kumano.hiroshima.jp","kure.hiroshima.jp","mihara.hiroshima.jp","miyoshi.hiroshima.jp","naka.hiroshima.jp","onomichi.hiroshima.jp","osakikamijima.hiroshima.jp","otake.hiroshima.jp","saka.hiroshima.jp","sera.hiroshima.jp","seranishi.hiroshima.jp","shinichi.hiroshima.jp","shobara.hiroshima.jp","takehara.hiroshima.jp","abashiri.hokkaido.jp","abira.hokkaido.jp","aibetsu.hokkaido.jp","akabira.hokkaido.jp","akkeshi.hokkaido.jp","asahikawa.hokkaido.jp","ashibetsu.hokkaido.jp","ashoro.hokkaido.jp","assabu.hokkaido.jp","atsuma.hokkaido.jp","bibai.hokkaido.jp","biei.hokkaido.jp","bifuka.hokkaido.jp","bihoro.hokkaido.jp","biratori.hokkaido.jp","chippubetsu.hokkaido.jp","chitose.hokkaido.jp","date.hokkaido.jp","ebetsu.hokkaido.jp","embetsu.hokkaido.jp","eniwa.hokkaido.jp","erimo.hokkaido.jp","esan.hokkaido.jp","esashi.hokkaido.jp","fukagawa.hokkaido.jp","fukushima.hokkaido.jp","furano.hokkaido.jp","furubira.hokkaido.jp","haboro.hokkaido.jp","hakodate.hokkaido.jp","hamatonbetsu.hokkaido.jp","hidaka.hokkaido.jp","higashikagura.hokkaido.jp","higashikawa.hokkaido.jp","hiroo.hokkaido.jp","hokuryu.hokkaido.jp","hokuto.hokkaido.jp","honbetsu.hokkaido.jp","horokanai.hokkaido.jp","horonobe.hokkaido.jp","ikeda.hokkaido.jp","imakane.hokkaido.jp","ishikari.hokkaido.jp","iwamizawa.hokkaido.jp","iwanai.hokkaido.jp","kamifurano.hokkaido.jp","kamikawa.hokkaido.jp","kamishihoro.hokkaido.jp","kamisunagawa.hokkaido.jp","kamoenai.hokkaido.jp","kayabe.hokkaido.jp","kembuchi.hokkaido.jp","kikonai.hokkaido.jp","kimobetsu.hokkaido.jp","kitahiroshima.hokkaido.jp","kitami.hokkaido.jp","kiyosato.hokkaido.jp","koshimizu.hokkaido.jp","kunneppu.hokkaido.jp","kuriyama.hokkaido.jp","kuromatsunai.hokkaido.jp","kushiro.hokkaido.jp","kutchan.hokkaido.jp","kyowa.hokkaido.jp","mashike.hokkaido.jp","matsumae.hokkaido.jp","mikasa.hokkaido.jp","minamifurano.hokkaido.jp","mombetsu.hokkaido.jp","moseushi.hokkaido.jp","mukawa.hokkaido.jp","muroran.hokkaido.jp","naie.hokkaido.jp","nakagawa.hokkaido.jp","nakasatsunai.hokkaido.jp","nakatombetsu.hokkaido.jp","nanae.hokkaido.jp","nanporo.hokkaido.jp","nayoro.hokkaido.jp","nemuro.hokkaido.jp","niikappu.hokkaido.jp","niki.hokkaido.jp","nishiokoppe.hokkaido.jp","noboribetsu.hokkaido.jp","numata.hokkaido.jp","obihiro.hokkaido.jp","obira.hokkaido.jp","oketo.hokkaido.jp","okoppe.hokkaido.jp","otaru.hokkaido.jp","otobe.hokkaido.jp","otofuke.hokkaido.jp","otoineppu.hokkaido.jp","oumu.hokkaido.jp","ozora.hokkaido.jp","pippu.hokkaido.jp","rankoshi.hokkaido.jp","rebun.hokkaido.jp","rikubetsu.hokkaido.jp","rishiri.hokkaido.jp","rishirifuji.hokkaido.jp","saroma.hokkaido.jp","sarufutsu.hokkaido.jp","shakotan.hokkaido.jp","shari.hokkaido.jp","shibecha.hokkaido.jp","shibetsu.hokkaido.jp","shikabe.hokkaido.jp","shikaoi.hokkaido.jp","shimamaki.hokkaido.jp","shimizu.hokkaido.jp","shimokawa.hokkaido.jp","shinshinotsu.hokkaido.jp","shintoku.hokkaido.jp","shiranuka.hokkaido.jp","shiraoi.hokkaido.jp","shiriuchi.hokkaido.jp","sobetsu.hokkaido.jp","sunagawa.hokkaido.jp","taiki.hokkaido.jp","takasu.hokkaido.jp","takikawa.hokkaido.jp","takinoue.hokkaido.jp","teshikaga.hokkaido.jp","tobetsu.hokkaido.jp","tohma.hokkaido.jp","tomakomai.hokkaido.jp","tomari.hokkaido.jp","toya.hokkaido.jp","toyako.hokkaido.jp","toyotomi.hokkaido.jp","toyoura.hokkaido.jp","tsubetsu.hokkaido.jp","tsukigata.hokkaido.jp","urakawa.hokkaido.jp","urausu.hokkaido.jp","uryu.hokkaido.jp","utashinai.hokkaido.jp","wakkanai.hokkaido.jp","wassamu.hokkaido.jp","yakumo.hokkaido.jp","yoichi.hokkaido.jp","aioi.hyogo.jp","akashi.hyogo.jp","ako.hyogo.jp","amagasaki.hyogo.jp","aogaki.hyogo.jp","asago.hyogo.jp","ashiya.hyogo.jp","awaji.hyogo.jp","fukusaki.hyogo.jp","goshiki.hyogo.jp","harima.hyogo.jp","himeji.hyogo.jp","ichikawa.hyogo.jp","inagawa.hyogo.jp","itami.hyogo.jp","kakogawa.hyogo.jp","kamigori.hyogo.jp","kamikawa.hyogo.jp","kasai.hyogo.jp","kasuga.hyogo.jp","kawanishi.hyogo.jp","miki.hyogo.jp","minamiawaji.hyogo.jp","nishinomiya.hyogo.jp","nishiwaki.hyogo.jp","ono.hyogo.jp","sanda.hyogo.jp","sannan.hyogo.jp","sasayama.hyogo.jp","sayo.hyogo.jp","shingu.hyogo.jp","shinonsen.hyogo.jp","shiso.hyogo.jp","sumoto.hyogo.jp","taishi.hyogo.jp","taka.hyogo.jp","takarazuka.hyogo.jp","takasago.hyogo.jp","takino.hyogo.jp","tamba.hyogo.jp","tatsuno.hyogo.jp","toyooka.hyogo.jp","yabu.hyogo.jp","yashiro.hyogo.jp","yoka.hyogo.jp","yokawa.hyogo.jp","ami.ibaraki.jp","asahi.ibaraki.jp","bando.ibaraki.jp","chikusei.ibaraki.jp","daigo.ibaraki.jp","fujishiro.ibaraki.jp","hitachi.ibaraki.jp","hitachinaka.ibaraki.jp","hitachiomiya.ibaraki.jp","hitachiota.ibaraki.jp","ibaraki.ibaraki.jp","ina.ibaraki.jp","inashiki.ibaraki.jp","itako.ibaraki.jp","iwama.ibaraki.jp","joso.ibaraki.jp","kamisu.ibaraki.jp","kasama.ibaraki.jp","kashima.ibaraki.jp","kasumigaura.ibaraki.jp","koga.ibaraki.jp","miho.ibaraki.jp","mito.ibaraki.jp","moriya.ibaraki.jp","naka.ibaraki.jp","namegata.ibaraki.jp","oarai.ibaraki.jp","ogawa.ibaraki.jp","omitama.ibaraki.jp","ryugasaki.ibaraki.jp","sakai.ibaraki.jp","sakuragawa.ibaraki.jp","shimodate.ibaraki.jp","shimotsuma.ibaraki.jp","shirosato.ibaraki.jp","sowa.ibaraki.jp","suifu.ibaraki.jp","takahagi.ibaraki.jp","tamatsukuri.ibaraki.jp","tokai.ibaraki.jp","tomobe.ibaraki.jp","tone.ibaraki.jp","toride.ibaraki.jp","tsuchiura.ibaraki.jp","tsukuba.ibaraki.jp","uchihara.ibaraki.jp","ushiku.ibaraki.jp","yachiyo.ibaraki.jp","yamagata.ibaraki.jp","yawara.ibaraki.jp","yuki.ibaraki.jp","anamizu.ishikawa.jp","hakui.ishikawa.jp","hakusan.ishikawa.jp","kaga.ishikawa.jp","kahoku.ishikawa.jp","kanazawa.ishikawa.jp","kawakita.ishikawa.jp","komatsu.ishikawa.jp","nakanoto.ishikawa.jp","nanao.ishikawa.jp","nomi.ishikawa.jp","nonoichi.ishikawa.jp","noto.ishikawa.jp","shika.ishikawa.jp","suzu.ishikawa.jp","tsubata.ishikawa.jp","tsurugi.ishikawa.jp","uchinada.ishikawa.jp","wajima.ishikawa.jp","fudai.iwate.jp","fujisawa.iwate.jp","hanamaki.iwate.jp","hiraizumi.iwate.jp","hirono.iwate.jp","ichinohe.iwate.jp","ichinoseki.iwate.jp","iwaizumi.iwate.jp","iwate.iwate.jp","joboji.iwate.jp","kamaishi.iwate.jp","kanegasaki.iwate.jp","karumai.iwate.jp","kawai.iwate.jp","kitakami.iwate.jp","kuji.iwate.jp","kunohe.iwate.jp","kuzumaki.iwate.jp","miyako.iwate.jp","mizusawa.iwate.jp","morioka.iwate.jp","ninohe.iwate.jp","noda.iwate.jp","ofunato.iwate.jp","oshu.iwate.jp","otsuchi.iwate.jp","rikuzentakata.iwate.jp","shiwa.iwate.jp","shizukuishi.iwate.jp","sumita.iwate.jp","tanohata.iwate.jp","tono.iwate.jp","yahaba.iwate.jp","yamada.iwate.jp","ayagawa.kagawa.jp","higashikagawa.kagawa.jp","kanonji.kagawa.jp","kotohira.kagawa.jp","manno.kagawa.jp","marugame.kagawa.jp","mitoyo.kagawa.jp","naoshima.kagawa.jp","sanuki.kagawa.jp","tadotsu.kagawa.jp","takamatsu.kagawa.jp","tonosho.kagawa.jp","uchinomi.kagawa.jp","utazu.kagawa.jp","zentsuji.kagawa.jp","akune.kagoshima.jp","amami.kagoshima.jp","hioki.kagoshima.jp","isa.kagoshima.jp","isen.kagoshima.jp","izumi.kagoshima.jp","kagoshima.kagoshima.jp","kanoya.kagoshima.jp","kawanabe.kagoshima.jp","kinko.kagoshima.jp","kouyama.kagoshima.jp","makurazaki.kagoshima.jp","matsumoto.kagoshima.jp","minamitane.kagoshima.jp","nakatane.kagoshima.jp","nishinoomote.kagoshima.jp","satsumasendai.kagoshima.jp","soo.kagoshima.jp","tarumizu.kagoshima.jp","yusui.kagoshima.jp","aikawa.kanagawa.jp","atsugi.kanagawa.jp","ayase.kanagawa.jp","chigasaki.kanagawa.jp","ebina.kanagawa.jp","fujisawa.kanagawa.jp","hadano.kanagawa.jp","hakone.kanagawa.jp","hiratsuka.kanagawa.jp","isehara.kanagawa.jp","kaisei.kanagawa.jp","kamakura.kanagawa.jp","kiyokawa.kanagawa.jp","matsuda.kanagawa.jp","minamiashigara.kanagawa.jp","miura.kanagawa.jp","nakai.kanagawa.jp","ninomiya.kanagawa.jp","odawara.kanagawa.jp","oi.kanagawa.jp","oiso.kanagawa.jp","sagamihara.kanagawa.jp","samukawa.kanagawa.jp","tsukui.kanagawa.jp","yamakita.kanagawa.jp","yamato.kanagawa.jp","yokosuka.kanagawa.jp","yugawara.kanagawa.jp","zama.kanagawa.jp","zushi.kanagawa.jp","aki.kochi.jp","geisei.kochi.jp","hidaka.kochi.jp","higashitsuno.kochi.jp","ino.kochi.jp","kagami.kochi.jp","kami.kochi.jp","kitagawa.kochi.jp","kochi.kochi.jp","mihara.kochi.jp","motoyama.kochi.jp","muroto.kochi.jp","nahari.kochi.jp","nakamura.kochi.jp","nankoku.kochi.jp","nishitosa.kochi.jp","niyodogawa.kochi.jp","ochi.kochi.jp","okawa.kochi.jp","otoyo.kochi.jp","otsuki.kochi.jp","sakawa.kochi.jp","sukumo.kochi.jp","susaki.kochi.jp","tosa.kochi.jp","tosashimizu.kochi.jp","toyo.kochi.jp","tsuno.kochi.jp","umaji.kochi.jp","yasuda.kochi.jp","yusuhara.kochi.jp","amakusa.kumamoto.jp","arao.kumamoto.jp","aso.kumamoto.jp","choyo.kumamoto.jp","gyokuto.kumamoto.jp","kamiamakusa.kumamoto.jp","kikuchi.kumamoto.jp","kumamoto.kumamoto.jp","mashiki.kumamoto.jp","mifune.kumamoto.jp","minamata.kumamoto.jp","minamioguni.kumamoto.jp","nagasu.kumamoto.jp","nishihara.kumamoto.jp","oguni.kumamoto.jp","ozu.kumamoto.jp","sumoto.kumamoto.jp","takamori.kumamoto.jp","uki.kumamoto.jp","uto.kumamoto.jp","yamaga.kumamoto.jp","yamato.kumamoto.jp","yatsushiro.kumamoto.jp","ayabe.kyoto.jp","fukuchiyama.kyoto.jp","higashiyama.kyoto.jp","ide.kyoto.jp","ine.kyoto.jp","joyo.kyoto.jp","kameoka.kyoto.jp","kamo.kyoto.jp","kita.kyoto.jp","kizu.kyoto.jp","kumiyama.kyoto.jp","kyotamba.kyoto.jp","kyotanabe.kyoto.jp","kyotango.kyoto.jp","maizuru.kyoto.jp","minami.kyoto.jp","minamiyamashiro.kyoto.jp","miyazu.kyoto.jp","muko.kyoto.jp","nagaokakyo.kyoto.jp","nakagyo.kyoto.jp","nantan.kyoto.jp","oyamazaki.kyoto.jp","sakyo.kyoto.jp","seika.kyoto.jp","tanabe.kyoto.jp","uji.kyoto.jp","ujitawara.kyoto.jp","wazuka.kyoto.jp","yamashina.kyoto.jp","yawata.kyoto.jp","asahi.mie.jp","inabe.mie.jp","ise.mie.jp","kameyama.mie.jp","kawagoe.mie.jp","kiho.mie.jp","kisosaki.mie.jp","kiwa.mie.jp","komono.mie.jp","kumano.mie.jp","kuwana.mie.jp","matsusaka.mie.jp","meiwa.mie.jp","mihama.mie.jp","minamiise.mie.jp","misugi.mie.jp","miyama.mie.jp","nabari.mie.jp","shima.mie.jp","suzuka.mie.jp","tado.mie.jp","taiki.mie.jp","taki.mie.jp","tamaki.mie.jp","toba.mie.jp","tsu.mie.jp","udono.mie.jp","ureshino.mie.jp","watarai.mie.jp","yokkaichi.mie.jp","furukawa.miyagi.jp","higashimatsushima.miyagi.jp","ishinomaki.miyagi.jp","iwanuma.miyagi.jp","kakuda.miyagi.jp","kami.miyagi.jp","kawasaki.miyagi.jp","marumori.miyagi.jp","matsushima.miyagi.jp","minamisanriku.miyagi.jp","misato.miyagi.jp","murata.miyagi.jp","natori.miyagi.jp","ogawara.miyagi.jp","ohira.miyagi.jp","onagawa.miyagi.jp","osaki.miyagi.jp","rifu.miyagi.jp","semine.miyagi.jp","shibata.miyagi.jp","shichikashuku.miyagi.jp","shikama.miyagi.jp","shiogama.miyagi.jp","shiroishi.miyagi.jp","tagajo.miyagi.jp","taiwa.miyagi.jp","tome.miyagi.jp","tomiya.miyagi.jp","wakuya.miyagi.jp","watari.miyagi.jp","yamamoto.miyagi.jp","zao.miyagi.jp","aya.miyazaki.jp","ebino.miyazaki.jp","gokase.miyazaki.jp","hyuga.miyazaki.jp","kadogawa.miyazaki.jp","kawaminami.miyazaki.jp","kijo.miyazaki.jp","kitagawa.miyazaki.jp","kitakata.miyazaki.jp","kitaura.miyazaki.jp","kobayashi.miyazaki.jp","kunitomi.miyazaki.jp","kushima.miyazaki.jp","mimata.miyazaki.jp","miyakonojo.miyazaki.jp","miyazaki.miyazaki.jp","morotsuka.miyazaki.jp","nichinan.miyazaki.jp","nishimera.miyazaki.jp","nobeoka.miyazaki.jp","saito.miyazaki.jp","shiiba.miyazaki.jp","shintomi.miyazaki.jp","takaharu.miyazaki.jp","takanabe.miyazaki.jp","takazaki.miyazaki.jp","tsuno.miyazaki.jp","achi.nagano.jp","agematsu.nagano.jp","anan.nagano.jp","aoki.nagano.jp","asahi.nagano.jp","azumino.nagano.jp","chikuhoku.nagano.jp","chikuma.nagano.jp","chino.nagano.jp","fujimi.nagano.jp","hakuba.nagano.jp","hara.nagano.jp","hiraya.nagano.jp","iida.nagano.jp","iijima.nagano.jp","iiyama.nagano.jp","iizuna.nagano.jp","ikeda.nagano.jp","ikusaka.nagano.jp","ina.nagano.jp","karuizawa.nagano.jp","kawakami.nagano.jp","kiso.nagano.jp","kisofukushima.nagano.jp","kitaaiki.nagano.jp","komagane.nagano.jp","komoro.nagano.jp","matsukawa.nagano.jp","matsumoto.nagano.jp","miasa.nagano.jp","minamiaiki.nagano.jp","minamimaki.nagano.jp","minamiminowa.nagano.jp","minowa.nagano.jp","miyada.nagano.jp","miyota.nagano.jp","mochizuki.nagano.jp","nagano.nagano.jp","nagawa.nagano.jp","nagiso.nagano.jp","nakagawa.nagano.jp","nakano.nagano.jp","nozawaonsen.nagano.jp","obuse.nagano.jp","ogawa.nagano.jp","okaya.nagano.jp","omachi.nagano.jp","omi.nagano.jp","ookuwa.nagano.jp","ooshika.nagano.jp","otaki.nagano.jp","otari.nagano.jp","sakae.nagano.jp","sakaki.nagano.jp","saku.nagano.jp","sakuho.nagano.jp","shimosuwa.nagano.jp","shinanomachi.nagano.jp","shiojiri.nagano.jp","suwa.nagano.jp","suzaka.nagano.jp","takagi.nagano.jp","takamori.nagano.jp","takayama.nagano.jp","tateshina.nagano.jp","tatsuno.nagano.jp","togakushi.nagano.jp","togura.nagano.jp","tomi.nagano.jp","ueda.nagano.jp","wada.nagano.jp","yamagata.nagano.jp","yamanouchi.nagano.jp","yasaka.nagano.jp","yasuoka.nagano.jp","chijiwa.nagasaki.jp","futsu.nagasaki.jp","goto.nagasaki.jp","hasami.nagasaki.jp","hirado.nagasaki.jp","iki.nagasaki.jp","isahaya.nagasaki.jp","kawatana.nagasaki.jp","kuchinotsu.nagasaki.jp","matsuura.nagasaki.jp","nagasaki.nagasaki.jp","obama.nagasaki.jp","omura.nagasaki.jp","oseto.nagasaki.jp","saikai.nagasaki.jp","sasebo.nagasaki.jp","seihi.nagasaki.jp","shimabara.nagasaki.jp","shinkamigoto.nagasaki.jp","togitsu.nagasaki.jp","tsushima.nagasaki.jp","unzen.nagasaki.jp","ando.nara.jp","gose.nara.jp","heguri.nara.jp","higashiyoshino.nara.jp","ikaruga.nara.jp","ikoma.nara.jp","kamikitayama.nara.jp","kanmaki.nara.jp","kashiba.nara.jp","kashihara.nara.jp","katsuragi.nara.jp","kawai.nara.jp","kawakami.nara.jp","kawanishi.nara.jp","koryo.nara.jp","kurotaki.nara.jp","mitsue.nara.jp","miyake.nara.jp","nara.nara.jp","nosegawa.nara.jp","oji.nara.jp","ouda.nara.jp","oyodo.nara.jp","sakurai.nara.jp","sango.nara.jp","shimoichi.nara.jp","shimokitayama.nara.jp","shinjo.nara.jp","soni.nara.jp","takatori.nara.jp","tawaramoto.nara.jp","tenkawa.nara.jp","tenri.nara.jp","uda.nara.jp","yamatokoriyama.nara.jp","yamatotakada.nara.jp","yamazoe.nara.jp","yoshino.nara.jp","aga.niigata.jp","agano.niigata.jp","gosen.niigata.jp","itoigawa.niigata.jp","izumozaki.niigata.jp","joetsu.niigata.jp","kamo.niigata.jp","kariwa.niigata.jp","kashiwazaki.niigata.jp","minamiuonuma.niigata.jp","mitsuke.niigata.jp","muika.niigata.jp","murakami.niigata.jp","myoko.niigata.jp","nagaoka.niigata.jp","niigata.niigata.jp","ojiya.niigata.jp","omi.niigata.jp","sado.niigata.jp","sanjo.niigata.jp","seiro.niigata.jp","seirou.niigata.jp","sekikawa.niigata.jp","shibata.niigata.jp","tagami.niigata.jp","tainai.niigata.jp","tochio.niigata.jp","tokamachi.niigata.jp","tsubame.niigata.jp","tsunan.niigata.jp","uonuma.niigata.jp","yahiko.niigata.jp","yoita.niigata.jp","yuzawa.niigata.jp","beppu.oita.jp","bungoono.oita.jp","bungotakada.oita.jp","hasama.oita.jp","hiji.oita.jp","himeshima.oita.jp","hita.oita.jp","kamitsue.oita.jp","kokonoe.oita.jp","kuju.oita.jp","kunisaki.oita.jp","kusu.oita.jp","oita.oita.jp","saiki.oita.jp","taketa.oita.jp","tsukumi.oita.jp","usa.oita.jp","usuki.oita.jp","yufu.oita.jp","akaiwa.okayama.jp","asakuchi.okayama.jp","bizen.okayama.jp","hayashima.okayama.jp","ibara.okayama.jp","kagamino.okayama.jp","kasaoka.okayama.jp","kibichuo.okayama.jp","kumenan.okayama.jp","kurashiki.okayama.jp","maniwa.okayama.jp","misaki.okayama.jp","nagi.okayama.jp","niimi.okayama.jp","nishiawakura.okayama.jp","okayama.okayama.jp","satosho.okayama.jp","setouchi.okayama.jp","shinjo.okayama.jp","shoo.okayama.jp","soja.okayama.jp","takahashi.okayama.jp","tamano.okayama.jp","tsuyama.okayama.jp","wake.okayama.jp","yakage.okayama.jp","aguni.okinawa.jp","ginowan.okinawa.jp","ginoza.okinawa.jp","gushikami.okinawa.jp","haebaru.okinawa.jp","higashi.okinawa.jp","hirara.okinawa.jp","iheya.okinawa.jp","ishigaki.okinawa.jp","ishikawa.okinawa.jp","itoman.okinawa.jp","izena.okinawa.jp","kadena.okinawa.jp","kin.okinawa.jp","kitadaito.okinawa.jp","kitanakagusuku.okinawa.jp","kumejima.okinawa.jp","kunigami.okinawa.jp","minamidaito.okinawa.jp","motobu.okinawa.jp","nago.okinawa.jp","naha.okinawa.jp","nakagusuku.okinawa.jp","nakijin.okinawa.jp","nanjo.okinawa.jp","nishihara.okinawa.jp","ogimi.okinawa.jp","okinawa.okinawa.jp","onna.okinawa.jp","shimoji.okinawa.jp","taketomi.okinawa.jp","tarama.okinawa.jp","tokashiki.okinawa.jp","tomigusuku.okinawa.jp","tonaki.okinawa.jp","urasoe.okinawa.jp","uruma.okinawa.jp","yaese.okinawa.jp","yomitan.okinawa.jp","yonabaru.okinawa.jp","yonaguni.okinawa.jp","zamami.okinawa.jp","abeno.osaka.jp","chihayaakasaka.osaka.jp","chuo.osaka.jp","daito.osaka.jp","fujiidera.osaka.jp","habikino.osaka.jp","hannan.osaka.jp","higashiosaka.osaka.jp","higashisumiyoshi.osaka.jp","higashiyodogawa.osaka.jp","hirakata.osaka.jp","ibaraki.osaka.jp","ikeda.osaka.jp","izumi.osaka.jp","izumiotsu.osaka.jp","izumisano.osaka.jp","kadoma.osaka.jp","kaizuka.osaka.jp","kanan.osaka.jp","kashiwara.osaka.jp","katano.osaka.jp","kawachinagano.osaka.jp","kishiwada.osaka.jp","kita.osaka.jp","kumatori.osaka.jp","matsubara.osaka.jp","minato.osaka.jp","minoh.osaka.jp","misaki.osaka.jp","moriguchi.osaka.jp","neyagawa.osaka.jp","nishi.osaka.jp","nose.osaka.jp","osakasayama.osaka.jp","sakai.osaka.jp","sayama.osaka.jp","sennan.osaka.jp","settsu.osaka.jp","shijonawate.osaka.jp","shimamoto.osaka.jp","suita.osaka.jp","tadaoka.osaka.jp","taishi.osaka.jp","tajiri.osaka.jp","takaishi.osaka.jp","takatsuki.osaka.jp","tondabayashi.osaka.jp","toyonaka.osaka.jp","toyono.osaka.jp","yao.osaka.jp","ariake.saga.jp","arita.saga.jp","fukudomi.saga.jp","genkai.saga.jp","hamatama.saga.jp","hizen.saga.jp","imari.saga.jp","kamimine.saga.jp","kanzaki.saga.jp","karatsu.saga.jp","kashima.saga.jp","kitagata.saga.jp","kitahata.saga.jp","kiyama.saga.jp","kouhoku.saga.jp","kyuragi.saga.jp","nishiarita.saga.jp","ogi.saga.jp","omachi.saga.jp","ouchi.saga.jp","saga.saga.jp","shiroishi.saga.jp","taku.saga.jp","tara.saga.jp","tosu.saga.jp","yoshinogari.saga.jp","arakawa.saitama.jp","asaka.saitama.jp","chichibu.saitama.jp","fujimi.saitama.jp","fujimino.saitama.jp","fukaya.saitama.jp","hanno.saitama.jp","hanyu.saitama.jp","hasuda.saitama.jp","hatogaya.saitama.jp","hatoyama.saitama.jp","hidaka.saitama.jp","higashichichibu.saitama.jp","higashimatsuyama.saitama.jp","honjo.saitama.jp","ina.saitama.jp","iruma.saitama.jp","iwatsuki.saitama.jp","kamiizumi.saitama.jp","kamikawa.saitama.jp","kamisato.saitama.jp","kasukabe.saitama.jp","kawagoe.saitama.jp","kawaguchi.saitama.jp","kawajima.saitama.jp","kazo.saitama.jp","kitamoto.saitama.jp","koshigaya.saitama.jp","kounosu.saitama.jp","kuki.saitama.jp","kumagaya.saitama.jp","matsubushi.saitama.jp","minano.saitama.jp","misato.saitama.jp","miyashiro.saitama.jp","miyoshi.saitama.jp","moroyama.saitama.jp","nagatoro.saitama.jp","namegawa.saitama.jp","niiza.saitama.jp","ogano.saitama.jp","ogawa.saitama.jp","ogose.saitama.jp","okegawa.saitama.jp","omiya.saitama.jp","otaki.saitama.jp","ranzan.saitama.jp","ryokami.saitama.jp","saitama.saitama.jp","sakado.saitama.jp","satte.saitama.jp","sayama.saitama.jp","shiki.saitama.jp","shiraoka.saitama.jp","soka.saitama.jp","sugito.saitama.jp","toda.saitama.jp","tokigawa.saitama.jp","tokorozawa.saitama.jp","tsurugashima.saitama.jp","urawa.saitama.jp","warabi.saitama.jp","yashio.saitama.jp","yokoze.saitama.jp","yono.saitama.jp","yorii.saitama.jp","yoshida.saitama.jp","yoshikawa.saitama.jp","yoshimi.saitama.jp","aisho.shiga.jp","gamo.shiga.jp","higashiomi.shiga.jp","hikone.shiga.jp","koka.shiga.jp","konan.shiga.jp","kosei.shiga.jp","koto.shiga.jp","kusatsu.shiga.jp","maibara.shiga.jp","moriyama.shiga.jp","nagahama.shiga.jp","nishiazai.shiga.jp","notogawa.shiga.jp","omihachiman.shiga.jp","otsu.shiga.jp","ritto.shiga.jp","ryuoh.shiga.jp","takashima.shiga.jp","takatsuki.shiga.jp","torahime.shiga.jp","toyosato.shiga.jp","yasu.shiga.jp","akagi.shimane.jp","ama.shimane.jp","gotsu.shimane.jp","hamada.shimane.jp","higashiizumo.shimane.jp","hikawa.shimane.jp","hikimi.shimane.jp","izumo.shimane.jp","kakinoki.shimane.jp","masuda.shimane.jp","matsue.shimane.jp","misato.shimane.jp","nishinoshima.shimane.jp","ohda.shimane.jp","okinoshima.shimane.jp","okuizumo.shimane.jp","shimane.shimane.jp","tamayu.shimane.jp","tsuwano.shimane.jp","unnan.shimane.jp","yakumo.shimane.jp","yasugi.shimane.jp","yatsuka.shimane.jp","arai.shizuoka.jp","atami.shizuoka.jp","fuji.shizuoka.jp","fujieda.shizuoka.jp","fujikawa.shizuoka.jp","fujinomiya.shizuoka.jp","fukuroi.shizuoka.jp","gotemba.shizuoka.jp","haibara.shizuoka.jp","hamamatsu.shizuoka.jp","higashiizu.shizuoka.jp","ito.shizuoka.jp","iwata.shizuoka.jp","izu.shizuoka.jp","izunokuni.shizuoka.jp","kakegawa.shizuoka.jp","kannami.shizuoka.jp","kawanehon.shizuoka.jp","kawazu.shizuoka.jp","kikugawa.shizuoka.jp","kosai.shizuoka.jp","makinohara.shizuoka.jp","matsuzaki.shizuoka.jp","minamiizu.shizuoka.jp","mishima.shizuoka.jp","morimachi.shizuoka.jp","nishiizu.shizuoka.jp","numazu.shizuoka.jp","omaezaki.shizuoka.jp","shimada.shizuoka.jp","shimizu.shizuoka.jp","shimoda.shizuoka.jp","shizuoka.shizuoka.jp","susono.shizuoka.jp","yaizu.shizuoka.jp","yoshida.shizuoka.jp","ashikaga.tochigi.jp","bato.tochigi.jp","haga.tochigi.jp","ichikai.tochigi.jp","iwafune.tochigi.jp","kaminokawa.tochigi.jp","kanuma.tochigi.jp","karasuyama.tochigi.jp","kuroiso.tochigi.jp","mashiko.tochigi.jp","mibu.tochigi.jp","moka.tochigi.jp","motegi.tochigi.jp","nasu.tochigi.jp","nasushiobara.tochigi.jp","nikko.tochigi.jp","nishikata.tochigi.jp","nogi.tochigi.jp","ohira.tochigi.jp","ohtawara.tochigi.jp","oyama.tochigi.jp","sakura.tochigi.jp","sano.tochigi.jp","shimotsuke.tochigi.jp","shioya.tochigi.jp","takanezawa.tochigi.jp","tochigi.tochigi.jp","tsuga.tochigi.jp","ujiie.tochigi.jp","utsunomiya.tochigi.jp","yaita.tochigi.jp","aizumi.tokushima.jp","anan.tokushima.jp","ichiba.tokushima.jp","itano.tokushima.jp","kainan.tokushima.jp","komatsushima.tokushima.jp","matsushige.tokushima.jp","mima.tokushima.jp","minami.tokushima.jp","miyoshi.tokushima.jp","mugi.tokushima.jp","nakagawa.tokushima.jp","naruto.tokushima.jp","sanagochi.tokushima.jp","shishikui.tokushima.jp","tokushima.tokushima.jp","wajiki.tokushima.jp","adachi.tokyo.jp","akiruno.tokyo.jp","akishima.tokyo.jp","aogashima.tokyo.jp","arakawa.tokyo.jp","bunkyo.tokyo.jp","chiyoda.tokyo.jp","chofu.tokyo.jp","chuo.tokyo.jp","edogawa.tokyo.jp","fuchu.tokyo.jp","fussa.tokyo.jp","hachijo.tokyo.jp","hachioji.tokyo.jp","hamura.tokyo.jp","higashikurume.tokyo.jp","higashimurayama.tokyo.jp","higashiyamato.tokyo.jp","hino.tokyo.jp","hinode.tokyo.jp","hinohara.tokyo.jp","inagi.tokyo.jp","itabashi.tokyo.jp","katsushika.tokyo.jp","kita.tokyo.jp","kiyose.tokyo.jp","kodaira.tokyo.jp","koganei.tokyo.jp","kokubunji.tokyo.jp","komae.tokyo.jp","koto.tokyo.jp","kouzushima.tokyo.jp","kunitachi.tokyo.jp","machida.tokyo.jp","meguro.tokyo.jp","minato.tokyo.jp","mitaka.tokyo.jp","mizuho.tokyo.jp","musashimurayama.tokyo.jp","musashino.tokyo.jp","nakano.tokyo.jp","nerima.tokyo.jp","ogasawara.tokyo.jp","okutama.tokyo.jp","ome.tokyo.jp","oshima.tokyo.jp","ota.tokyo.jp","setagaya.tokyo.jp","shibuya.tokyo.jp","shinagawa.tokyo.jp","shinjuku.tokyo.jp","suginami.tokyo.jp","sumida.tokyo.jp","tachikawa.tokyo.jp","taito.tokyo.jp","tama.tokyo.jp","toshima.tokyo.jp","chizu.tottori.jp","hino.tottori.jp","kawahara.tottori.jp","koge.tottori.jp","kotoura.tottori.jp","misasa.tottori.jp","nanbu.tottori.jp","nichinan.tottori.jp","sakaiminato.tottori.jp","tottori.tottori.jp","wakasa.tottori.jp","yazu.tottori.jp","yonago.tottori.jp","asahi.toyama.jp","fuchu.toyama.jp","fukumitsu.toyama.jp","funahashi.toyama.jp","himi.toyama.jp","imizu.toyama.jp","inami.toyama.jp","johana.toyama.jp","kamiichi.toyama.jp","kurobe.toyama.jp","nakaniikawa.toyama.jp","namerikawa.toyama.jp","nanto.toyama.jp","nyuzen.toyama.jp","oyabe.toyama.jp","taira.toyama.jp","takaoka.toyama.jp","tateyama.toyama.jp","toga.toyama.jp","tonami.toyama.jp","toyama.toyama.jp","unazuki.toyama.jp","uozu.toyama.jp","yamada.toyama.jp","arida.wakayama.jp","aridagawa.wakayama.jp","gobo.wakayama.jp","hashimoto.wakayama.jp","hidaka.wakayama.jp","hirogawa.wakayama.jp","inami.wakayama.jp","iwade.wakayama.jp","kainan.wakayama.jp","kamitonda.wakayama.jp","katsuragi.wakayama.jp","kimino.wakayama.jp","kinokawa.wakayama.jp","kitayama.wakayama.jp","koya.wakayama.jp","koza.wakayama.jp","kozagawa.wakayama.jp","kudoyama.wakayama.jp","kushimoto.wakayama.jp","mihama.wakayama.jp","misato.wakayama.jp","nachikatsuura.wakayama.jp","shingu.wakayama.jp","shirahama.wakayama.jp","taiji.wakayama.jp","tanabe.wakayama.jp","wakayama.wakayama.jp","yuasa.wakayama.jp","yura.wakayama.jp","asahi.yamagata.jp","funagata.yamagata.jp","higashine.yamagata.jp","iide.yamagata.jp","kahoku.yamagata.jp","kaminoyama.yamagata.jp","kaneyama.yamagata.jp","kawanishi.yamagata.jp","mamurogawa.yamagata.jp","mikawa.yamagata.jp","murayama.yamagata.jp","nagai.yamagata.jp","nakayama.yamagata.jp","nanyo.yamagata.jp","nishikawa.yamagata.jp","obanazawa.yamagata.jp","oe.yamagata.jp","oguni.yamagata.jp","ohkura.yamagata.jp","oishida.yamagata.jp","sagae.yamagata.jp","sakata.yamagata.jp","sakegawa.yamagata.jp","shinjo.yamagata.jp","shirataka.yamagata.jp","shonai.yamagata.jp","takahata.yamagata.jp","tendo.yamagata.jp","tozawa.yamagata.jp","tsuruoka.yamagata.jp","yamagata.yamagata.jp","yamanobe.yamagata.jp","yonezawa.yamagata.jp","yuza.yamagata.jp","abu.yamaguchi.jp","hagi.yamaguchi.jp","hikari.yamaguchi.jp","hofu.yamaguchi.jp","iwakuni.yamaguchi.jp","kudamatsu.yamaguchi.jp","mitou.yamaguchi.jp","nagato.yamaguchi.jp","oshima.yamaguchi.jp","shimonoseki.yamaguchi.jp","shunan.yamaguchi.jp","tabuse.yamaguchi.jp","tokuyama.yamaguchi.jp","toyota.yamaguchi.jp","ube.yamaguchi.jp","yuu.yamaguchi.jp","chuo.yamanashi.jp","doshi.yamanashi.jp","fuefuki.yamanashi.jp","fujikawa.yamanashi.jp","fujikawaguchiko.yamanashi.jp","fujiyoshida.yamanashi.jp","hayakawa.yamanashi.jp","hokuto.yamanashi.jp","ichikawamisato.yamanashi.jp","kai.yamanashi.jp","kofu.yamanashi.jp","koshu.yamanashi.jp","kosuge.yamanashi.jp","minami-alps.yamanashi.jp","minobu.yamanashi.jp","nakamichi.yamanashi.jp","nanbu.yamanashi.jp","narusawa.yamanashi.jp","nirasaki.yamanashi.jp","nishikatsura.yamanashi.jp","oshino.yamanashi.jp","otsuki.yamanashi.jp","showa.yamanashi.jp","tabayama.yamanashi.jp","tsuru.yamanashi.jp","uenohara.yamanashi.jp","yamanakako.yamanashi.jp","yamanashi.yamanashi.jp","ke","ac.ke","co.ke","go.ke","info.ke","me.ke","mobi.ke","ne.ke","or.ke","sc.ke","kg","org.kg","net.kg","com.kg","edu.kg","gov.kg","mil.kg","*.kh","ki","edu.ki","biz.ki","net.ki","org.ki","gov.ki","info.ki","com.ki","km","org.km","nom.km","gov.km","prd.km","tm.km","edu.km","mil.km","ass.km","com.km","coop.km","asso.km","presse.km","medecin.km","notaires.km","pharmaciens.km","veterinaire.km","gouv.km","kn","net.kn","org.kn","edu.kn","gov.kn","kp","com.kp","edu.kp","gov.kp","org.kp","rep.kp","tra.kp","kr","ac.kr","co.kr","es.kr","go.kr","hs.kr","kg.kr","mil.kr","ms.kr","ne.kr","or.kr","pe.kr","re.kr","sc.kr","busan.kr","chungbuk.kr","chungnam.kr","daegu.kr","daejeon.kr","gangwon.kr","gwangju.kr","gyeongbuk.kr","gyeonggi.kr","gyeongnam.kr","incheon.kr","jeju.kr","jeonbuk.kr","jeonnam.kr","seoul.kr","ulsan.kr","kw","com.kw","edu.kw","emb.kw","gov.kw","ind.kw","net.kw","org.kw","ky","edu.ky","gov.ky","com.ky","org.ky","net.ky","kz","org.kz","edu.kz","net.kz","gov.kz","mil.kz","com.kz","la","int.la","net.la","info.la","edu.la","gov.la","per.la","com.la","org.la","lb","com.lb","edu.lb","gov.lb","net.lb","org.lb","lc","com.lc","net.lc","co.lc","org.lc","edu.lc","gov.lc","li","lk","gov.lk","sch.lk","net.lk","int.lk","com.lk","org.lk","edu.lk","ngo.lk","soc.lk","web.lk","ltd.lk","assn.lk","grp.lk","hotel.lk","ac.lk","lr","com.lr","edu.lr","gov.lr","org.lr","net.lr","ls","co.ls","org.ls","lt","gov.lt","lu","lv","com.lv","edu.lv","gov.lv","org.lv","mil.lv","id.lv","net.lv","asn.lv","conf.lv","ly","com.ly","net.ly","gov.ly","plc.ly","edu.ly","sch.ly","med.ly","org.ly","id.ly","ma","co.ma","net.ma","gov.ma","org.ma","ac.ma","press.ma","mc","tm.mc","asso.mc","md","me","co.me","net.me","org.me","edu.me","ac.me","gov.me","its.me","priv.me","mg","org.mg","nom.mg","gov.mg","prd.mg","tm.mg","edu.mg","mil.mg","com.mg","co.mg","mh","mil","mk","com.mk","org.mk","net.mk","edu.mk","gov.mk","inf.mk","name.mk","ml","com.ml","edu.ml","gouv.ml","gov.ml","net.ml","org.ml","presse.ml","*.mm","mn","gov.mn","edu.mn","org.mn","mo","com.mo","net.mo","org.mo","edu.mo","gov.mo","mobi","mp","mq","mr","gov.mr","ms","com.ms","edu.ms","gov.ms","net.ms","org.ms","mt","com.mt","edu.mt","net.mt","org.mt","mu","com.mu","net.mu","org.mu","gov.mu","ac.mu","co.mu","or.mu","museum","academy.museum","agriculture.museum","air.museum","airguard.museum","alabama.museum","alaska.museum","amber.museum","ambulance.museum","american.museum","americana.museum","americanantiques.museum","americanart.museum","amsterdam.museum","and.museum","annefrank.museum","anthro.museum","anthropology.museum","antiques.museum","aquarium.museum","arboretum.museum","archaeological.museum","archaeology.museum","architecture.museum","art.museum","artanddesign.museum","artcenter.museum","artdeco.museum","arteducation.museum","artgallery.museum","arts.museum","artsandcrafts.museum","asmatart.museum","assassination.museum","assisi.museum","association.museum","astronomy.museum","atlanta.museum","austin.museum","australia.museum","automotive.museum","aviation.museum","axis.museum","badajoz.museum","baghdad.museum","bahn.museum","bale.museum","baltimore.museum","barcelona.museum","baseball.museum","basel.museum","baths.museum","bauern.museum","beauxarts.museum","beeldengeluid.museum","bellevue.museum","bergbau.museum","berkeley.museum","berlin.museum","bern.museum","bible.museum","bilbao.museum","bill.museum","birdart.museum","birthplace.museum","bonn.museum","boston.museum","botanical.museum","botanicalgarden.museum","botanicgarden.museum","botany.museum","brandywinevalley.museum","brasil.museum","bristol.museum","british.museum","britishcolumbia.museum","broadcast.museum","brunel.museum","brussel.museum","brussels.museum","bruxelles.museum","building.museum","burghof.museum","bus.museum","bushey.museum","cadaques.museum","california.museum","cambridge.museum","can.museum","canada.museum","capebreton.museum","carrier.museum","cartoonart.museum","casadelamoneda.museum","castle.museum","castres.museum","celtic.museum","center.museum","chattanooga.museum","cheltenham.museum","chesapeakebay.museum","chicago.museum","children.museum","childrens.museum","childrensgarden.museum","chiropractic.museum","chocolate.museum","christiansburg.museum","cincinnati.museum","cinema.museum","circus.museum","civilisation.museum","civilization.museum","civilwar.museum","clinton.museum","clock.museum","coal.museum","coastaldefence.museum","cody.museum","coldwar.museum","collection.museum","colonialwilliamsburg.museum","coloradoplateau.museum","columbia.museum","columbus.museum","communication.museum","communications.museum","community.museum","computer.museum","computerhistory.museum","comunicações.museum","contemporary.museum","contemporaryart.museum","convent.museum","copenhagen.museum","corporation.museum","correios-e-telecomunicações.museum","corvette.museum","costume.museum","countryestate.museum","county.museum","crafts.museum","cranbrook.museum","creation.museum","cultural.museum","culturalcenter.museum","culture.museum","cyber.museum","cymru.museum","dali.museum","dallas.museum","database.museum","ddr.museum","decorativearts.museum","delaware.museum","delmenhorst.museum","denmark.museum","depot.museum","design.museum","detroit.museum","dinosaur.museum","discovery.museum","dolls.museum","donostia.museum","durham.museum","eastafrica.museum","eastcoast.museum","education.museum","educational.museum","egyptian.museum","eisenbahn.museum","elburg.museum","elvendrell.museum","embroidery.museum","encyclopedic.museum","england.museum","entomology.museum","environment.museum","environmentalconservation.museum","epilepsy.museum","essex.museum","estate.museum","ethnology.museum","exeter.museum","exhibition.museum","family.museum","farm.museum","farmequipment.museum","farmers.museum","farmstead.museum","field.museum","figueres.museum","filatelia.museum","film.museum","fineart.museum","finearts.museum","finland.museum","flanders.museum","florida.museum","force.museum","fortmissoula.museum","fortworth.museum","foundation.museum","francaise.museum","frankfurt.museum","franziskaner.museum","freemasonry.museum","freiburg.museum","fribourg.museum","frog.museum","fundacio.museum","furniture.museum","gallery.museum","garden.museum","gateway.museum","geelvinck.museum","gemological.museum","geology.museum","georgia.museum","giessen.museum","glas.museum","glass.museum","gorge.museum","grandrapids.museum","graz.museum","guernsey.museum","halloffame.museum","hamburg.museum","handson.museum","harvestcelebration.museum","hawaii.museum","health.museum","heimatunduhren.museum","hellas.museum","helsinki.museum","hembygdsforbund.museum","heritage.museum","histoire.museum","historical.museum","historicalsociety.museum","historichouses.museum","historisch.museum","historisches.museum","history.museum","historyofscience.museum","horology.museum","house.museum","humanities.museum","illustration.museum","imageandsound.museum","indian.museum","indiana.museum","indianapolis.museum","indianmarket.museum","intelligence.museum","interactive.museum","iraq.museum","iron.museum","isleofman.museum","jamison.museum","jefferson.museum","jerusalem.museum","jewelry.museum","jewish.museum","jewishart.museum","jfk.museum","journalism.museum","judaica.museum","judygarland.museum","juedisches.museum","juif.museum","karate.museum","karikatur.museum","kids.museum","koebenhavn.museum","koeln.museum","kunst.museum","kunstsammlung.museum","kunstunddesign.museum","labor.museum","labour.museum","lajolla.museum","lancashire.museum","landes.museum","lans.museum","läns.museum","larsson.museum","lewismiller.museum","lincoln.museum","linz.museum","living.museum","livinghistory.museum","localhistory.museum","london.museum","losangeles.museum","louvre.museum","loyalist.museum","lucerne.museum","luxembourg.museum","luzern.museum","mad.museum","madrid.museum","mallorca.museum","manchester.museum","mansion.museum","mansions.museum","manx.museum","marburg.museum","maritime.museum","maritimo.museum","maryland.museum","marylhurst.museum","media.museum","medical.museum","medizinhistorisches.museum","meeres.museum","memorial.museum","mesaverde.museum","michigan.museum","midatlantic.museum","military.museum","mill.museum","miners.museum","mining.museum","minnesota.museum","missile.museum","missoula.museum","modern.museum","moma.museum","money.museum","monmouth.museum","monticello.museum","montreal.museum","moscow.museum","motorcycle.museum","muenchen.museum","muenster.museum","mulhouse.museum","muncie.museum","museet.museum","museumcenter.museum","museumvereniging.museum","music.museum","national.museum","nationalfirearms.museum","nationalheritage.museum","nativeamerican.museum","naturalhistory.museum","naturalhistorymuseum.museum","naturalsciences.museum","nature.museum","naturhistorisches.museum","natuurwetenschappen.museum","naumburg.museum","naval.museum","nebraska.museum","neues.museum","newhampshire.museum","newjersey.museum","newmexico.museum","newport.museum","newspaper.museum","newyork.museum","niepce.museum","norfolk.museum","north.museum","nrw.museum","nuernberg.museum","nuremberg.museum","nyc.museum","nyny.museum","oceanographic.museum","oceanographique.museum","omaha.museum","online.museum","ontario.museum","openair.museum","oregon.museum","oregontrail.museum","otago.museum","oxford.museum","pacific.museum","paderborn.museum","palace.museum","paleo.museum","palmsprings.museum","panama.museum","paris.museum","pasadena.museum","pharmacy.museum","philadelphia.museum","philadelphiaarea.museum","philately.museum","phoenix.museum","photography.museum","pilots.museum","pittsburgh.museum","planetarium.museum","plantation.museum","plants.museum","plaza.museum","portal.museum","portland.museum","portlligat.museum","posts-and-telecommunications.museum","preservation.museum","presidio.museum","press.museum","project.museum","public.museum","pubol.museum","quebec.museum","railroad.museum","railway.museum","research.museum","resistance.museum","riodejaneiro.museum","rochester.museum","rockart.museum","roma.museum","russia.museum","saintlouis.museum","salem.museum","salvadordali.museum","salzburg.museum","sandiego.museum","sanfrancisco.museum","santabarbara.museum","santacruz.museum","santafe.museum","saskatchewan.museum","satx.museum","savannahga.museum","schlesisches.museum","schoenbrunn.museum","schokoladen.museum","school.museum","schweiz.museum","science.museum","scienceandhistory.museum","scienceandindustry.museum","sciencecenter.museum","sciencecenters.museum","science-fiction.museum","sciencehistory.museum","sciences.museum","sciencesnaturelles.museum","scotland.museum","seaport.museum","settlement.museum","settlers.museum","shell.museum","sherbrooke.museum","sibenik.museum","silk.museum","ski.museum","skole.museum","society.museum","sologne.museum","soundandvision.museum","southcarolina.museum","southwest.museum","space.museum","spy.museum","square.museum","stadt.museum","stalbans.museum","starnberg.museum","state.museum","stateofdelaware.museum","station.museum","steam.museum","steiermark.museum","stjohn.museum","stockholm.museum","stpetersburg.museum","stuttgart.museum","suisse.museum","surgeonshall.museum","surrey.museum","svizzera.museum","sweden.museum","sydney.museum","tank.museum","tcm.museum","technology.museum","telekommunikation.museum","television.museum","texas.museum","textile.museum","theater.museum","time.museum","timekeeping.museum","topology.museum","torino.museum","touch.museum","town.museum","transport.museum","tree.museum","trolley.museum","trust.museum","trustee.museum","uhren.museum","ulm.museum","undersea.museum","university.museum","usa.museum","usantiques.museum","usarts.museum","uscountryestate.museum","usculture.museum","usdecorativearts.museum","usgarden.museum","ushistory.museum","ushuaia.museum","uslivinghistory.museum","utah.museum","uvic.museum","valley.museum","vantaa.museum","versailles.museum","viking.museum","village.museum","virginia.museum","virtual.museum","virtuel.museum","vlaanderen.museum","volkenkunde.museum","wales.museum","wallonie.museum","war.museum","washingtondc.museum","watchandclock.museum","watch-and-clock.museum","western.museum","westfalen.museum","whaling.museum","wildlife.museum","williamsburg.museum","windmill.museum","workshop.museum","york.museum","yorkshire.museum","yosemite.museum","youth.museum","zoological.museum","zoology.museum","ירושלים.museum","иком.museum","mv","aero.mv","biz.mv","com.mv","coop.mv","edu.mv","gov.mv","info.mv","int.mv","mil.mv","museum.mv","name.mv","net.mv","org.mv","pro.mv","mw","ac.mw","biz.mw","co.mw","com.mw","coop.mw","edu.mw","gov.mw","int.mw","museum.mw","net.mw","org.mw","mx","com.mx","org.mx","gob.mx","edu.mx","net.mx","my","com.my","net.my","org.my","gov.my","edu.my","mil.my","name.my","mz","ac.mz","adv.mz","co.mz","edu.mz","gov.mz","mil.mz","net.mz","org.mz","na","info.na","pro.na","name.na","school.na","or.na","dr.na","us.na","mx.na","ca.na","in.na","cc.na","tv.na","ws.na","mobi.na","co.na","com.na","org.na","name","nc","asso.nc","nom.nc","ne","net","nf","com.nf","net.nf","per.nf","rec.nf","web.nf","arts.nf","firm.nf","info.nf","other.nf","store.nf","ng","com.ng","edu.ng","gov.ng","i.ng","mil.ng","mobi.ng","name.ng","net.ng","org.ng","sch.ng","ni","ac.ni","biz.ni","co.ni","com.ni","edu.ni","gob.ni","in.ni","info.ni","int.ni","mil.ni","net.ni","nom.ni","org.ni","web.ni","nl","bv.nl","no","fhs.no","vgs.no","fylkesbibl.no","folkebibl.no","museum.no","idrett.no","priv.no","mil.no","stat.no","dep.no","kommune.no","herad.no","aa.no","ah.no","bu.no","fm.no","hl.no","hm.no","jan-mayen.no","mr.no","nl.no","nt.no","of.no","ol.no","oslo.no","rl.no","sf.no","st.no","svalbard.no","tm.no","tr.no","va.no","vf.no","gs.aa.no","gs.ah.no","gs.bu.no","gs.fm.no","gs.hl.no","gs.hm.no","gs.jan-mayen.no","gs.mr.no","gs.nl.no","gs.nt.no","gs.of.no","gs.ol.no","gs.oslo.no","gs.rl.no","gs.sf.no","gs.st.no","gs.svalbard.no","gs.tm.no","gs.tr.no","gs.va.no","gs.vf.no","akrehamn.no","åkrehamn.no","algard.no","ålgård.no","arna.no","brumunddal.no","bryne.no","bronnoysund.no","brønnøysund.no","drobak.no","drøbak.no","egersund.no","fetsund.no","floro.no","florø.no","fredrikstad.no","hokksund.no","honefoss.no","hønefoss.no","jessheim.no","jorpeland.no","jørpeland.no","kirkenes.no","kopervik.no","krokstadelva.no","langevag.no","langevåg.no","leirvik.no","mjondalen.no","mjøndalen.no","mo-i-rana.no","mosjoen.no","mosjøen.no","nesoddtangen.no","orkanger.no","osoyro.no","osøyro.no","raholt.no","råholt.no","sandnessjoen.no","sandnessjøen.no","skedsmokorset.no","slattum.no","spjelkavik.no","stathelle.no","stavern.no","stjordalshalsen.no","stjørdalshalsen.no","tananger.no","tranby.no","vossevangen.no","afjord.no","åfjord.no","agdenes.no","al.no","ål.no","alesund.no","ålesund.no","alstahaug.no","alta.no","áltá.no","alaheadju.no","álaheadju.no","alvdal.no","amli.no","åmli.no","amot.no","åmot.no","andebu.no","andoy.no","andøy.no","andasuolo.no","ardal.no","årdal.no","aremark.no","arendal.no","ås.no","aseral.no","åseral.no","asker.no","askim.no","askvoll.no","askoy.no","askøy.no","asnes.no","åsnes.no","audnedaln.no","aukra.no","aure.no","aurland.no","aurskog-holand.no","aurskog-høland.no","austevoll.no","austrheim.no","averoy.no","averøy.no","balestrand.no","ballangen.no","balat.no","bálát.no","balsfjord.no","bahccavuotna.no","báhccavuotna.no","bamble.no","bardu.no","beardu.no","beiarn.no","bajddar.no","bájddar.no","baidar.no","báidár.no","berg.no","bergen.no","berlevag.no","berlevåg.no","bearalvahki.no","bearalváhki.no","bindal.no","birkenes.no","bjarkoy.no","bjarkøy.no","bjerkreim.no","bjugn.no","bodo.no","bodø.no","badaddja.no","bådåddjå.no","budejju.no","bokn.no","bremanger.no","bronnoy.no","brønnøy.no","bygland.no","bykle.no","barum.no","bærum.no","bo.telemark.no","bø.telemark.no","bo.nordland.no","bø.nordland.no","bievat.no","bievát.no","bomlo.no","bømlo.no","batsfjord.no","båtsfjord.no","bahcavuotna.no","báhcavuotna.no","dovre.no","drammen.no","drangedal.no","dyroy.no","dyrøy.no","donna.no","dønna.no","eid.no","eidfjord.no","eidsberg.no","eidskog.no","eidsvoll.no","eigersund.no","elverum.no","enebakk.no","engerdal.no","etne.no","etnedal.no","evenes.no","evenassi.no","evenášši.no","evje-og-hornnes.no","farsund.no","fauske.no","fuossko.no","fuoisku.no","fedje.no","fet.no","finnoy.no","finnøy.no","fitjar.no","fjaler.no","fjell.no","flakstad.no","flatanger.no","flekkefjord.no","flesberg.no","flora.no","fla.no","flå.no","folldal.no","forsand.no","fosnes.no","frei.no","frogn.no","froland.no","frosta.no","frana.no","fræna.no","froya.no","frøya.no","fusa.no","fyresdal.no","forde.no","førde.no","gamvik.no","gangaviika.no","gáŋgaviika.no","gaular.no","gausdal.no","gildeskal.no","gildeskål.no","giske.no","gjemnes.no","gjerdrum.no","gjerstad.no","gjesdal.no","gjovik.no","gjøvik.no","gloppen.no","gol.no","gran.no","grane.no","granvin.no","gratangen.no","grimstad.no","grong.no","kraanghke.no","kråanghke.no","grue.no","gulen.no","hadsel.no","halden.no","halsa.no","hamar.no","hamaroy.no","habmer.no","hábmer.no","hapmir.no","hápmir.no","hammerfest.no","hammarfeasta.no","hámmárfeasta.no","haram.no","hareid.no","harstad.no","hasvik.no","aknoluokta.no","ákŋoluokta.no","hattfjelldal.no","aarborte.no","haugesund.no","hemne.no","hemnes.no","hemsedal.no","heroy.more-og-romsdal.no","herøy.møre-og-romsdal.no","heroy.nordland.no","herøy.nordland.no","hitra.no","hjartdal.no","hjelmeland.no","hobol.no","hobøl.no","hof.no","hol.no","hole.no","holmestrand.no","holtalen.no","holtålen.no","hornindal.no","horten.no","hurdal.no","hurum.no","hvaler.no","hyllestad.no","hagebostad.no","hægebostad.no","hoyanger.no","høyanger.no","hoylandet.no","høylandet.no","ha.no","hå.no","ibestad.no","inderoy.no","inderøy.no","iveland.no","jevnaker.no","jondal.no","jolster.no","jølster.no","karasjok.no","karasjohka.no","kárášjohka.no","karlsoy.no","galsa.no","gálsá.no","karmoy.no","karmøy.no","kautokeino.no","guovdageaidnu.no","klepp.no","klabu.no","klæbu.no","kongsberg.no","kongsvinger.no","kragero.no","kragerø.no","kristiansand.no","kristiansund.no","krodsherad.no","krødsherad.no","kvalsund.no","rahkkeravju.no","ráhkkerávju.no","kvam.no","kvinesdal.no","kvinnherad.no","kviteseid.no","kvitsoy.no","kvitsøy.no","kvafjord.no","kvæfjord.no","giehtavuoatna.no","kvanangen.no","kvænangen.no","navuotna.no","návuotna.no","kafjord.no","kåfjord.no","gaivuotna.no","gáivuotna.no","larvik.no","lavangen.no","lavagis.no","loabat.no","loabát.no","lebesby.no","davvesiida.no","leikanger.no","leirfjord.no","leka.no","leksvik.no","lenvik.no","leangaviika.no","leaŋgaviika.no","lesja.no","levanger.no","lier.no","lierne.no","lillehammer.no","lillesand.no","lindesnes.no","lindas.no","lindås.no","lom.no","loppa.no","lahppi.no","láhppi.no","lund.no","lunner.no","luroy.no","lurøy.no","luster.no","lyngdal.no","lyngen.no","ivgu.no","lardal.no","lerdal.no","lærdal.no","lodingen.no","lødingen.no","lorenskog.no","lørenskog.no","loten.no","løten.no","malvik.no","masoy.no","måsøy.no","muosat.no","muosát.no","mandal.no","marker.no","marnardal.no","masfjorden.no","meland.no","meldal.no","melhus.no","meloy.no","meløy.no","meraker.no","meråker.no","moareke.no","moåreke.no","midsund.no","midtre-gauldal.no","modalen.no","modum.no","molde.no","moskenes.no","moss.no","mosvik.no","malselv.no","målselv.no","malatvuopmi.no","málatvuopmi.no","namdalseid.no","aejrie.no","namsos.no","namsskogan.no","naamesjevuemie.no","nååmesjevuemie.no","laakesvuemie.no","nannestad.no","narvik.no","narviika.no","naustdal.no","nedre-eiker.no","nes.akershus.no","nes.buskerud.no","nesna.no","nesodden.no","nesseby.no","unjarga.no","unjárga.no","nesset.no","nissedal.no","nittedal.no","nord-aurdal.no","nord-fron.no","nord-odal.no","norddal.no","nordkapp.no","davvenjarga.no","davvenjárga.no","nordre-land.no","nordreisa.no","raisa.no","ráisa.no","nore-og-uvdal.no","notodden.no","naroy.no","nærøy.no","notteroy.no","nøtterøy.no","odda.no","oksnes.no","øksnes.no","oppdal.no","oppegard.no","oppegård.no","orkdal.no","orland.no","ørland.no","orskog.no","ørskog.no","orsta.no","ørsta.no","os.hedmark.no","os.hordaland.no","osen.no","osteroy.no","osterøy.no","ostre-toten.no","østre-toten.no","overhalla.no","ovre-eiker.no","øvre-eiker.no","oyer.no","øyer.no","oygarden.no","øygarden.no","oystre-slidre.no","øystre-slidre.no","porsanger.no","porsangu.no","porsáŋgu.no","porsgrunn.no","radoy.no","radøy.no","rakkestad.no","rana.no","ruovat.no","randaberg.no","rauma.no","rendalen.no","rennebu.no","rennesoy.no","rennesøy.no","rindal.no","ringebu.no","ringerike.no","ringsaker.no","rissa.no","risor.no","risør.no","roan.no","rollag.no","rygge.no","ralingen.no","rælingen.no","rodoy.no","rødøy.no","romskog.no","rømskog.no","roros.no","røros.no","rost.no","røst.no","royken.no","røyken.no","royrvik.no","røyrvik.no","rade.no","råde.no","salangen.no","siellak.no","saltdal.no","salat.no","sálát.no","sálat.no","samnanger.no","sande.more-og-romsdal.no","sande.møre-og-romsdal.no","sande.vestfold.no","sandefjord.no","sandnes.no","sandoy.no","sandøy.no","sarpsborg.no","sauda.no","sauherad.no","sel.no","selbu.no","selje.no","seljord.no","sigdal.no","siljan.no","sirdal.no","skaun.no","skedsmo.no","ski.no","skien.no","skiptvet.no","skjervoy.no","skjervøy.no","skierva.no","skiervá.no","skjak.no","skjåk.no","skodje.no","skanland.no","skånland.no","skanit.no","skánit.no","smola.no","smøla.no","snillfjord.no","snasa.no","snåsa.no","snoasa.no","snaase.no","snåase.no","sogndal.no","sokndal.no","sola.no","solund.no","songdalen.no","sortland.no","spydeberg.no","stange.no","stavanger.no","steigen.no","steinkjer.no","stjordal.no","stjørdal.no","stokke.no","stor-elvdal.no","stord.no","stordal.no","storfjord.no","omasvuotna.no","strand.no","stranda.no","stryn.no","sula.no","suldal.no","sund.no","sunndal.no","surnadal.no","sveio.no","svelvik.no","sykkylven.no","sogne.no","søgne.no","somna.no","sømna.no","sondre-land.no","søndre-land.no","sor-aurdal.no","sør-aurdal.no","sor-fron.no","sør-fron.no","sor-odal.no","sør-odal.no","sor-varanger.no","sør-varanger.no","matta-varjjat.no","mátta-várjjat.no","sorfold.no","sørfold.no","sorreisa.no","sørreisa.no","sorum.no","sørum.no","tana.no","deatnu.no","time.no","tingvoll.no","tinn.no","tjeldsund.no","dielddanuorri.no","tjome.no","tjøme.no","tokke.no","tolga.no","torsken.no","tranoy.no","tranøy.no","tromso.no","tromsø.no","tromsa.no","romsa.no","trondheim.no","troandin.no","trysil.no","trana.no","træna.no","trogstad.no","trøgstad.no","tvedestrand.no","tydal.no","tynset.no","tysfjord.no","divtasvuodna.no","divttasvuotna.no","tysnes.no","tysvar.no","tysvær.no","tonsberg.no","tønsberg.no","ullensaker.no","ullensvang.no","ulvik.no","utsira.no","vadso.no","vadsø.no","cahcesuolo.no","čáhcesuolo.no","vaksdal.no","valle.no","vang.no","vanylven.no","vardo.no","vardø.no","varggat.no","várggát.no","vefsn.no","vaapste.no","vega.no","vegarshei.no","vegårshei.no","vennesla.no","verdal.no","verran.no","vestby.no","vestnes.no","vestre-slidre.no","vestre-toten.no","vestvagoy.no","vestvågøy.no","vevelstad.no","vik.no","vikna.no","vindafjord.no","volda.no","voss.no","varoy.no","værøy.no","vagan.no","vågan.no","voagat.no","vagsoy.no","vågsøy.no","vaga.no","vågå.no","valer.ostfold.no","våler.østfold.no","valer.hedmark.no","våler.hedmark.no","*.np","nr","biz.nr","info.nr","gov.nr","edu.nr","org.nr","net.nr","com.nr","nu","nz","ac.nz","co.nz","cri.nz","geek.nz","gen.nz","govt.nz","health.nz","iwi.nz","kiwi.nz","maori.nz","mil.nz","māori.nz","net.nz","org.nz","parliament.nz","school.nz","om","co.om","com.om","edu.om","gov.om","med.om","museum.om","net.om","org.om","pro.om","onion","org","pa","ac.pa","gob.pa","com.pa","org.pa","sld.pa","edu.pa","net.pa","ing.pa","abo.pa","med.pa","nom.pa","pe","edu.pe","gob.pe","nom.pe","mil.pe","org.pe","com.pe","net.pe","pf","com.pf","org.pf","edu.pf","*.pg","ph","com.ph","net.ph","org.ph","gov.ph","edu.ph","ngo.ph","mil.ph","i.ph","pk","com.pk","net.pk","edu.pk","org.pk","fam.pk","biz.pk","web.pk","gov.pk","gob.pk","gok.pk","gon.pk","gop.pk","gos.pk","info.pk","pl","com.pl","net.pl","org.pl","aid.pl","agro.pl","atm.pl","auto.pl","biz.pl","edu.pl","gmina.pl","gsm.pl","info.pl","mail.pl","miasta.pl","media.pl","mil.pl","nieruchomosci.pl","nom.pl","pc.pl","powiat.pl","priv.pl","realestate.pl","rel.pl","sex.pl","shop.pl","sklep.pl","sos.pl","szkola.pl","targi.pl","tm.pl","tourism.pl","travel.pl","turystyka.pl","gov.pl","ap.gov.pl","ic.gov.pl","is.gov.pl","us.gov.pl","kmpsp.gov.pl","kppsp.gov.pl","kwpsp.gov.pl","psp.gov.pl","wskr.gov.pl","kwp.gov.pl","mw.gov.pl","ug.gov.pl","um.gov.pl","umig.gov.pl","ugim.gov.pl","upow.gov.pl","uw.gov.pl","starostwo.gov.pl","pa.gov.pl","po.gov.pl","psse.gov.pl","pup.gov.pl","rzgw.gov.pl","sa.gov.pl","so.gov.pl","sr.gov.pl","wsa.gov.pl","sko.gov.pl","uzs.gov.pl","wiih.gov.pl","winb.gov.pl","pinb.gov.pl","wios.gov.pl","witd.gov.pl","wzmiuw.gov.pl","piw.gov.pl","wiw.gov.pl","griw.gov.pl","wif.gov.pl","oum.gov.pl","sdn.gov.pl","zp.gov.pl","uppo.gov.pl","mup.gov.pl","wuoz.gov.pl","konsulat.gov.pl","oirm.gov.pl","augustow.pl","babia-gora.pl","bedzin.pl","beskidy.pl","bialowieza.pl","bialystok.pl","bielawa.pl","bieszczady.pl","boleslawiec.pl","bydgoszcz.pl","bytom.pl","cieszyn.pl","czeladz.pl","czest.pl","dlugoleka.pl","elblag.pl","elk.pl","glogow.pl","gniezno.pl","gorlice.pl","grajewo.pl","ilawa.pl","jaworzno.pl","jelenia-gora.pl","jgora.pl","kalisz.pl","kazimierz-dolny.pl","karpacz.pl","kartuzy.pl","kaszuby.pl","katowice.pl","kepno.pl","ketrzyn.pl","klodzko.pl","kobierzyce.pl","kolobrzeg.pl","konin.pl","konskowola.pl","kutno.pl","lapy.pl","lebork.pl","legnica.pl","lezajsk.pl","limanowa.pl","lomza.pl","lowicz.pl","lubin.pl","lukow.pl","malbork.pl","malopolska.pl","mazowsze.pl","mazury.pl","mielec.pl","mielno.pl","mragowo.pl","naklo.pl","nowaruda.pl","nysa.pl","olawa.pl","olecko.pl","olkusz.pl","olsztyn.pl","opoczno.pl","opole.pl","ostroda.pl","ostroleka.pl","ostrowiec.pl","ostrowwlkp.pl","pila.pl","pisz.pl","podhale.pl","podlasie.pl","polkowice.pl","pomorze.pl","pomorskie.pl","prochowice.pl","pruszkow.pl","przeworsk.pl","pulawy.pl","radom.pl","rawa-maz.pl","rybnik.pl","rzeszow.pl","sanok.pl","sejny.pl","slask.pl","slupsk.pl","sosnowiec.pl","stalowa-wola.pl","skoczow.pl","starachowice.pl","stargard.pl","suwalki.pl","swidnica.pl","swiebodzin.pl","swinoujscie.pl","szczecin.pl","szczytno.pl","tarnobrzeg.pl","tgory.pl","turek.pl","tychy.pl","ustka.pl","walbrzych.pl","warmia.pl","warszawa.pl","waw.pl","wegrow.pl","wielun.pl","wlocl.pl","wloclawek.pl","wodzislaw.pl","wolomin.pl","wroclaw.pl","zachpomor.pl","zagan.pl","zarow.pl","zgora.pl","zgorzelec.pl","pm","pn","gov.pn","co.pn","org.pn","edu.pn","net.pn","post","pr","com.pr","net.pr","org.pr","gov.pr","edu.pr","isla.pr","pro.pr","biz.pr","info.pr","name.pr","est.pr","prof.pr","ac.pr","pro","aaa.pro","aca.pro","acct.pro","avocat.pro","bar.pro","cpa.pro","eng.pro","jur.pro","law.pro","med.pro","recht.pro","ps","edu.ps","gov.ps","sec.ps","plo.ps","com.ps","org.ps","net.ps","pt","net.pt","gov.pt","org.pt","edu.pt","int.pt","publ.pt","com.pt","nome.pt","pw","co.pw","ne.pw","or.pw","ed.pw","go.pw","belau.pw","py","com.py","coop.py","edu.py","gov.py","mil.py","net.py","org.py","qa","com.qa","edu.qa","gov.qa","mil.qa","name.qa","net.qa","org.qa","sch.qa","re","asso.re","com.re","nom.re","ro","arts.ro","com.ro","firm.ro","info.ro","nom.ro","nt.ro","org.ro","rec.ro","store.ro","tm.ro","www.ro","rs","ac.rs","co.rs","edu.rs","gov.rs","in.rs","org.rs","ru","ac.ru","edu.ru","gov.ru","int.ru","mil.ru","test.ru","rw","gov.rw","net.rw","edu.rw","ac.rw","com.rw","co.rw","int.rw","mil.rw","gouv.rw","sa","com.sa","net.sa","org.sa","gov.sa","med.sa","pub.sa","edu.sa","sch.sa","sb","com.sb","edu.sb","gov.sb","net.sb","org.sb","sc","com.sc","gov.sc","net.sc","org.sc","edu.sc","sd","com.sd","net.sd","org.sd","edu.sd","med.sd","tv.sd","gov.sd","info.sd","se","a.se","ac.se","b.se","bd.se","brand.se","c.se","d.se","e.se","f.se","fh.se","fhsk.se","fhv.se","g.se","h.se","i.se","k.se","komforb.se","kommunalforbund.se","komvux.se","l.se","lanbib.se","m.se","n.se","naturbruksgymn.se","o.se","org.se","p.se","parti.se","pp.se","press.se","r.se","s.se","t.se","tm.se","u.se","w.se","x.se","y.se","z.se","sg","com.sg","net.sg","org.sg","gov.sg","edu.sg","per.sg","sh","com.sh","net.sh","gov.sh","org.sh","mil.sh","si","sj","sk","sl","com.sl","net.sl","edu.sl","gov.sl","org.sl","sm","sn","art.sn","com.sn","edu.sn","gouv.sn","org.sn","perso.sn","univ.sn","so","com.so","net.so","org.so","sr","st","co.st","com.st","consulado.st","edu.st","embaixada.st","gov.st","mil.st","net.st","org.st","principe.st","saotome.st","store.st","su","sv","com.sv","edu.sv","gob.sv","org.sv","red.sv","sx","gov.sx","sy","edu.sy","gov.sy","net.sy","mil.sy","com.sy","org.sy","sz","co.sz","ac.sz","org.sz","tc","td","tel","tf","tg","th","ac.th","co.th","go.th","in.th","mi.th","net.th","or.th","tj","ac.tj","biz.tj","co.tj","com.tj","edu.tj","go.tj","gov.tj","int.tj","mil.tj","name.tj","net.tj","nic.tj","org.tj","test.tj","web.tj","tk","tl","gov.tl","tm","com.tm","co.tm","org.tm","net.tm","nom.tm","gov.tm","mil.tm","edu.tm","tn","com.tn","ens.tn","fin.tn","gov.tn","ind.tn","intl.tn","nat.tn","net.tn","org.tn","info.tn","perso.tn","tourism.tn","edunet.tn","rnrt.tn","rns.tn","rnu.tn","mincom.tn","agrinet.tn","defense.tn","turen.tn","to","com.to","gov.to","net.to","org.to","edu.to","mil.to","tr","com.tr","info.tr","biz.tr","net.tr","org.tr","web.tr","gen.tr","tv.tr","av.tr","dr.tr","bbs.tr","name.tr","tel.tr","gov.tr","bel.tr","pol.tr","mil.tr","k12.tr","edu.tr","kep.tr","nc.tr","gov.nc.tr","tt","co.tt","com.tt","org.tt","net.tt","biz.tt","info.tt","pro.tt","int.tt","coop.tt","jobs.tt","mobi.tt","travel.tt","museum.tt","aero.tt","name.tt","gov.tt","edu.tt","tv","tw","edu.tw","gov.tw","mil.tw","com.tw","net.tw","org.tw","idv.tw","game.tw","ebiz.tw","club.tw","網路.tw","組織.tw","商業.tw","tz","ac.tz","co.tz","go.tz","hotel.tz","info.tz","me.tz","mil.tz","mobi.tz","ne.tz","or.tz","sc.tz","tv.tz","ua","com.ua","edu.ua","gov.ua","in.ua","net.ua","org.ua","cherkassy.ua","cherkasy.ua","chernigov.ua","chernihiv.ua","chernivtsi.ua","chernovtsy.ua","ck.ua","cn.ua","cr.ua","crimea.ua","cv.ua","dn.ua","dnepropetrovsk.ua","dnipropetrovsk.ua","dominic.ua","donetsk.ua","dp.ua","if.ua","ivano-frankivsk.ua","kh.ua","kharkiv.ua","kharkov.ua","kherson.ua","khmelnitskiy.ua","khmelnytskyi.ua","kiev.ua","kirovograd.ua","km.ua","kr.ua","krym.ua","ks.ua","kv.ua","kyiv.ua","lg.ua","lt.ua","lugansk.ua","lutsk.ua","lv.ua","lviv.ua","mk.ua","mykolaiv.ua","nikolaev.ua","od.ua","odesa.ua","odessa.ua","pl.ua","poltava.ua","rivne.ua","rovno.ua","rv.ua","sb.ua","sebastopol.ua","sevastopol.ua","sm.ua","sumy.ua","te.ua","ternopil.ua","uz.ua","uzhgorod.ua","vinnica.ua","vinnytsia.ua","vn.ua","volyn.ua","yalta.ua","zaporizhzhe.ua","zaporizhzhia.ua","zhitomir.ua","zhytomyr.ua","zp.ua","zt.ua","ug","co.ug","or.ug","ac.ug","sc.ug","go.ug","ne.ug","com.ug","org.ug","uk","ac.uk","co.uk","gov.uk","ltd.uk","me.uk","net.uk","nhs.uk","org.uk","plc.uk","police.uk","*.sch.uk","us","dni.us","fed.us","isa.us","kids.us","nsn.us","ak.us","al.us","ar.us","as.us","az.us","ca.us","co.us","ct.us","dc.us","de.us","fl.us","ga.us","gu.us","hi.us","ia.us","id.us","il.us","in.us","ks.us","ky.us","la.us","ma.us","md.us","me.us","mi.us","mn.us","mo.us","ms.us","mt.us","nc.us","nd.us","ne.us","nh.us","nj.us","nm.us","nv.us","ny.us","oh.us","ok.us","or.us","pa.us","pr.us","ri.us","sc.us","sd.us","tn.us","tx.us","ut.us","vi.us","vt.us","va.us","wa.us","wi.us","wv.us","wy.us","k12.ak.us","k12.al.us","k12.ar.us","k12.as.us","k12.az.us","k12.ca.us","k12.co.us","k12.ct.us","k12.dc.us","k12.de.us","k12.fl.us","k12.ga.us","k12.gu.us","k12.ia.us","k12.id.us","k12.il.us","k12.in.us","k12.ks.us","k12.ky.us","k12.la.us","k12.ma.us","k12.md.us","k12.me.us","k12.mi.us","k12.mn.us","k12.mo.us","k12.ms.us","k12.mt.us","k12.nc.us","k12.ne.us","k12.nh.us","k12.nj.us","k12.nm.us","k12.nv.us","k12.ny.us","k12.oh.us","k12.ok.us","k12.or.us","k12.pa.us","k12.pr.us","k12.ri.us","k12.sc.us","k12.tn.us","k12.tx.us","k12.ut.us","k12.vi.us","k12.vt.us","k12.va.us","k12.wa.us","k12.wi.us","k12.wy.us","cc.ak.us","cc.al.us","cc.ar.us","cc.as.us","cc.az.us","cc.ca.us","cc.co.us","cc.ct.us","cc.dc.us","cc.de.us","cc.fl.us","cc.ga.us","cc.gu.us","cc.hi.us","cc.ia.us","cc.id.us","cc.il.us","cc.in.us","cc.ks.us","cc.ky.us","cc.la.us","cc.ma.us","cc.md.us","cc.me.us","cc.mi.us","cc.mn.us","cc.mo.us","cc.ms.us","cc.mt.us","cc.nc.us","cc.nd.us","cc.ne.us","cc.nh.us","cc.nj.us","cc.nm.us","cc.nv.us","cc.ny.us","cc.oh.us","cc.ok.us","cc.or.us","cc.pa.us","cc.pr.us","cc.ri.us","cc.sc.us","cc.sd.us","cc.tn.us","cc.tx.us","cc.ut.us","cc.vi.us","cc.vt.us","cc.va.us","cc.wa.us","cc.wi.us","cc.wv.us","cc.wy.us","lib.ak.us","lib.al.us","lib.ar.us","lib.as.us","lib.az.us","lib.ca.us","lib.co.us","lib.ct.us","lib.dc.us","lib.fl.us","lib.ga.us","lib.gu.us","lib.hi.us","lib.ia.us","lib.id.us","lib.il.us","lib.in.us","lib.ks.us","lib.ky.us","lib.la.us","lib.ma.us","lib.md.us","lib.me.us","lib.mi.us","lib.mn.us","lib.mo.us","lib.ms.us","lib.mt.us","lib.nc.us","lib.nd.us","lib.ne.us","lib.nh.us","lib.nj.us","lib.nm.us","lib.nv.us","lib.ny.us","lib.oh.us","lib.ok.us","lib.or.us","lib.pa.us","lib.pr.us","lib.ri.us","lib.sc.us","lib.sd.us","lib.tn.us","lib.tx.us","lib.ut.us","lib.vi.us","lib.vt.us","lib.va.us","lib.wa.us","lib.wi.us","lib.wy.us","pvt.k12.ma.us","chtr.k12.ma.us","paroch.k12.ma.us","ann-arbor.mi.us","cog.mi.us","dst.mi.us","eaton.mi.us","gen.mi.us","mus.mi.us","tec.mi.us","washtenaw.mi.us","uy","com.uy","edu.uy","gub.uy","mil.uy","net.uy","org.uy","uz","co.uz","com.uz","net.uz","org.uz","va","vc","com.vc","net.vc","org.vc","gov.vc","mil.vc","edu.vc","ve","arts.ve","co.ve","com.ve","e12.ve","edu.ve","firm.ve","gob.ve","gov.ve","info.ve","int.ve","mil.ve","net.ve","org.ve","rec.ve","store.ve","tec.ve","web.ve","vg","vi","co.vi","com.vi","k12.vi","net.vi","org.vi","vn","com.vn","net.vn","org.vn","edu.vn","gov.vn","int.vn","ac.vn","biz.vn","info.vn","name.vn","pro.vn","health.vn","vu","com.vu","edu.vu","net.vu","org.vu","wf","ws","com.ws","net.ws","org.ws","gov.ws","edu.ws","yt","امارات","հայ","বাংলা","бг","бел","中国","中國","الجزائر","مصر","ею","გე","ελ","香港","公司.香港","教育.香港","政府.香港","個人.香港","網絡.香港","組織.香港","ಭಾರತ","ଭାରତ","ভাৰত","भारतम्","भारोत","ڀارت","ഭാരതം","भारत","بارت","بھارت","భారత్","ભારત","ਭਾਰਤ","ভারত","இந்தியா","ایران","ايران","عراق","الاردن","한국","қаз","ලංකා","இலங்கை","المغرب","мкд","мон","澳門","澳门","مليسيا","عمان","پاکستان","پاكستان","فلسطين","срб","пр.срб","орг.срб","обр.срб","од.срб","упр.срб","ак.срб","рф","قطر","السعودية","السعودیة","السعودیۃ","السعوديه","سودان","新加坡","சிங்கப்பூர்","سورية","سوريا","ไทย","ศึกษา.ไทย","ธุรกิจ.ไทย","รัฐบาล.ไทย","ทหาร.ไทย","เน็ต.ไทย","องค์กร.ไทย","تونس","台灣","台湾","臺灣","укр","اليمن","xxx","*.ye","ac.za","agric.za","alt.za","co.za","edu.za","gov.za","grondar.za","law.za","mil.za","net.za","ngo.za","nis.za","nom.za","org.za","school.za","tm.za","web.za","zm","ac.zm","biz.zm","co.zm","com.zm","edu.zm","gov.zm","info.zm","mil.zm","net.zm","org.zm","sch.zm","zw","ac.zw","co.zw","gov.zw","mil.zw","org.zw","aaa","aarp","abarth","abb","abbott","abbvie","abc","able","abogado","abudhabi","academy","accenture","accountant","accountants","aco","active","actor","adac","ads","adult","aeg","aetna","afamilycompany","afl","africa","agakhan","agency","aig","aigo","airbus","airforce","airtel","akdn","alfaromeo","alibaba","alipay","allfinanz","allstate","ally","alsace","alstom","americanexpress","americanfamily","amex","amfam","amica","amsterdam","analytics","android","anquan","anz","aol","apartments","app","apple","aquarelle","arab","aramco","archi","army","art","arte","asda","associates","athleta","attorney","auction","audi","audible","audio","auspost","author","auto","autos","avianca","aws","axa","azure","baby","baidu","banamex","bananarepublic","band","bank","bar","barcelona","barclaycard","barclays","barefoot","bargains","baseball","basketball","bauhaus","bayern","bbc","bbt","bbva","bcg","bcn","beats","beauty","beer","bentley","berlin","best","bestbuy","bet","bharti","bible","bid","bike","bing","bingo","bio","black","blackfriday","blanco","blockbuster","blog","bloomberg","blue","bms","bmw","bnl","bnpparibas","boats","boehringer","bofa","bom","bond","boo","book","booking","bosch","bostik","boston","bot","boutique","box","bradesco","bridgestone","broadway","broker","brother","brussels","budapest","bugatti","build","builders","business","buy","buzz","bzh","cab","cafe","cal","call","calvinklein","cam","camera","camp","cancerresearch","canon","capetown","capital","capitalone","car","caravan","cards","care","career","careers","cars","cartier","casa","case","caseih","cash","casino","catering","catholic","cba","cbn","cbre","cbs","ceb","center","ceo","cern","cfa","cfd","chanel","channel","charity","chase","chat","cheap","chintai","christmas","chrome","chrysler","church","cipriani","circle","cisco","citadel","citi","citic","city","cityeats","claims","cleaning","click","clinic","clinique","clothing","cloud","club","clubmed","coach","codes","coffee","college","cologne","comcast","commbank","community","company","compare","computer","comsec","condos","construction","consulting","contact","contractors","cooking","cookingchannel","cool","corsica","country","coupon","coupons","courses","credit","creditcard","creditunion","cricket","crown","crs","cruise","cruises","csc","cuisinella","cymru","cyou","dabur","dad","dance","data","date","dating","datsun","day","dclk","dds","deal","dealer","deals","degree","delivery","dell","deloitte","delta","democrat","dental","dentist","desi","design","dev","dhl","diamonds","diet","digital","direct","directory","discount","discover","dish","diy","dnp","docs","doctor","dodge","dog","doha","domains","dot","download","drive","dtv","dubai","duck","dunlop","duns","dupont","durban","dvag","dvr","earth","eat","eco","edeka","education","email","emerck","energy","engineer","engineering","enterprises","epost","epson","equipment","ericsson","erni","esq","estate","esurance","etisalat","eurovision","eus","events","everbank","exchange","expert","exposed","express","extraspace","fage","fail","fairwinds","faith","family","fan","fans","farm","farmers","fashion","fast","fedex","feedback","ferrari","ferrero","fiat","fidelity","fido","film","final","finance","financial","fire","firestone","firmdale","fish","fishing","fit","fitness","flickr","flights","flir","florist","flowers","fly","foo","food","foodnetwork","football","ford","forex","forsale","forum","foundation","fox","free","fresenius","frl","frogans","frontdoor","frontier","ftr","fujitsu","fujixerox","fun","fund","furniture","futbol","fyi","gal","gallery","gallo","gallup","game","games","gap","garden","gbiz","gdn","gea","gent","genting","george","ggee","gift","gifts","gives","giving","glade","glass","gle","global","globo","gmail","gmbh","gmo","gmx","godaddy","gold","goldpoint","golf","goo","goodyear","goog","google","gop","got","grainger","graphics","gratis","green","gripe","grocery","group","guardian","gucci","guge","guide","guitars","guru","hair","hamburg","hangout","haus","hbo","hdfc","hdfcbank","health","healthcare","help","helsinki","here","hermes","hgtv","hiphop","hisamitsu","hitachi","hiv","hkt","hockey","holdings","holiday","homedepot","homegoods","homes","homesense","honda","honeywell","horse","hospital","host","hosting","hot","hoteles","hotels","hotmail","house","how","hsbc","hughes","hyatt","hyundai","ibm","icbc","ice","icu","ieee","ifm","ikano","imamat","imdb","immo","immobilien","inc","industries","infiniti","ing","ink","institute","insurance","insure","intel","international","intuit","investments","ipiranga","irish","iselect","ismaili","ist","istanbul","itau","itv","iveco","jaguar","java","jcb","jcp","jeep","jetzt","jewelry","jio","jll","jmp","jnj","joburg","jot","joy","jpmorgan","jprs","juegos","juniper","kaufen","kddi","kerryhotels","kerrylogistics","kerryproperties","kfh","kia","kim","kinder","kindle","kitchen","kiwi","koeln","komatsu","kosher","kpmg","kpn","krd","kred","kuokgroup","kyoto","lacaixa","ladbrokes","lamborghini","lamer","lancaster","lancia","lancome","land","landrover","lanxess","lasalle","lat","latino","latrobe","law","lawyer","lds","lease","leclerc","lefrak","legal","lego","lexus","lgbt","liaison","lidl","life","lifeinsurance","lifestyle","lighting","like","lilly","limited","limo","lincoln","linde","link","lipsy","live","living","lixil","llc","loan","loans","locker","locus","loft","lol","london","lotte","lotto","love","lpl","lplfinancial","ltd","ltda","lundbeck","lupin","luxe","luxury","macys","madrid","maif","maison","makeup","man","management","mango","map","market","marketing","markets","marriott","marshalls","maserati","mattel","mba","mckinsey","med","media","meet","melbourne","meme","memorial","men","menu","merckmsd","metlife","miami","microsoft","mini","mint","mit","mitsubishi","mlb","mls","mma","mobile","mobily","moda","moe","moi","mom","monash","money","monster","mopar","mormon","mortgage","moscow","moto","motorcycles","mov","movie","movistar","msd","mtn","mtr","mutual","nab","nadex","nagoya","nationwide","natura","navy","nba","nec","netbank","netflix","network","neustar","new","newholland","news","next","nextdirect","nexus","nfl","ngo","nhk","nico","nike","nikon","ninja","nissan","nissay","nokia","northwesternmutual","norton","now","nowruz","nowtv","nra","nrw","ntt","nyc","obi","observer","off","office","okinawa","olayan","olayangroup","oldnavy","ollo","omega","one","ong","onl","online","onyourside","ooo","open","oracle","orange","organic","origins","osaka","otsuka","ott","ovh","page","panasonic","paris","pars","partners","parts","party","passagens","pay","pccw","pet","pfizer","pharmacy","phd","philips","phone","photo","photography","photos","physio","piaget","pics","pictet","pictures","pid","pin","ping","pink","pioneer","pizza","place","play","playstation","plumbing","plus","pnc","pohl","poker","politie","porn","pramerica","praxi","press","prime","prod","productions","prof","progressive","promo","properties","property","protection","pru","prudential","pub","pwc","qpon","quebec","quest","qvc","racing","radio","raid","read","realestate","realtor","realty","recipes","red","redstone","redumbrella","rehab","reise","reisen","reit","reliance","ren","rent","rentals","repair","report","republican","rest","restaurant","review","reviews","rexroth","rich","richardli","ricoh","rightathome","ril","rio","rip","rmit","rocher","rocks","rodeo","rogers","room","rsvp","rugby","ruhr","run","rwe","ryukyu","saarland","safe","safety","sakura","sale","salon","samsclub","samsung","sandvik","sandvikcoromant","sanofi","sap","sarl","sas","save","saxo","sbi","sbs","sca","scb","schaeffler","schmidt","scholarships","school","schule","schwarz","science","scjohnson","scor","scot","search","seat","secure","security","seek","select","sener","services","ses","seven","sew","sex","sexy","sfr","shangrila","sharp","shaw","shell","shia","shiksha","shoes","shop","shopping","shouji","show","showtime","shriram","silk","sina","singles","site","ski","skin","sky","skype","sling","smart","smile","sncf","soccer","social","softbank","software","sohu","solar","solutions","song","sony","soy","space","spiegel","sport","spot","spreadbetting","srl","srt","stada","staples","star","starhub","statebank","statefarm","statoil","stc","stcgroup","stockholm","storage","store","stream","studio","study","style","sucks","supplies","supply","support","surf","surgery","suzuki","swatch","swiftcover","swiss","sydney","symantec","systems","tab","taipei","talk","taobao","target","tatamotors","tatar","tattoo","tax","taxi","tci","tdk","team","tech","technology","telefonica","temasek","tennis","teva","thd","theater","theatre","tiaa","tickets","tienda","tiffany","tips","tires","tirol","tjmaxx","tjx","tkmaxx","tmall","today","tokyo","tools","top","toray","toshiba","total","tours","town","toyota","toys","trade","trading","training","travel","travelchannel","travelers","travelersinsurance","trust","trv","tube","tui","tunes","tushu","tvs","ubank","ubs","uconnect","unicom","university","uno","uol","ups","vacations","vana","vanguard","vegas","ventures","verisign","versicherung","vet","viajes","video","vig","viking","villas","vin","vip","virgin","visa","vision","vistaprint","viva","vivo","vlaanderen","vodka","volkswagen","volvo","vote","voting","voto","voyage","vuelos","wales","walmart","walter","wang","wanggou","warman","watch","watches","weather","weatherchannel","webcam","weber","website","wed","wedding","weibo","weir","whoswho","wien","wiki","williamhill","win","windows","wine","winners","wme","wolterskluwer","woodside","work","works","world","wow","wtc","wtf","xbox","xerox","xfinity","xihuan","xin","कॉम","セール","佛山","慈善","集团","在线","大众汽车","点看","คอม","八卦","موقع","公益","公司","香格里拉","网站","移动","我爱你","москва","католик","онлайн","сайт","联通","קום","时尚","微博","淡马锡","ファッション","орг","नेट","ストア","삼성","商标","商店","商城","дети","ポイント","新闻","工行","家電","كوم","中文网","中信","娱乐","谷歌","電訊盈科","购物","クラウド","通販","网店","संगठन","餐厅","网络","ком","诺基亚","食品","飞利浦","手表","手机","ارامكو","العليان","اتصالات","بازار","موبايلي","ابوظبي","كاثوليك","همراه","닷컴","政府","شبكة","بيتك","عرب","机构","组织机构","健康","招聘","рус","珠宝","大拿","みんな","グーグル","世界","書籍","网址","닷넷","コム","天主教","游戏","vermögensberater","vermögensberatung","企业","信息","嘉里大酒店","嘉里","广东","政务","xyz","yachts","yahoo","yamaxun","yandex","yodobashi","yoga","yokohama","you","youtube","yun","zappos","zara","zero","zip","zippo","zone","zuerich","cc.ua","inf.ua","ltd.ua","beep.pl","*.compute.estate","*.alces.network","alwaysdata.net","cloudfront.net","*.compute.amazonaws.com","*.compute-1.amazonaws.com","*.compute.amazonaws.com.cn","us-east-1.amazonaws.com","cn-north-1.eb.amazonaws.com.cn","cn-northwest-1.eb.amazonaws.com.cn","elasticbeanstalk.com","ap-northeast-1.elasticbeanstalk.com","ap-northeast-2.elasticbeanstalk.com","ap-northeast-3.elasticbeanstalk.com","ap-south-1.elasticbeanstalk.com","ap-southeast-1.elasticbeanstalk.com","ap-southeast-2.elasticbeanstalk.com","ca-central-1.elasticbeanstalk.com","eu-central-1.elasticbeanstalk.com","eu-west-1.elasticbeanstalk.com","eu-west-2.elasticbeanstalk.com","eu-west-3.elasticbeanstalk.com","sa-east-1.elasticbeanstalk.com","us-east-1.elasticbeanstalk.com","us-east-2.elasticbeanstalk.com","us-gov-west-1.elasticbeanstalk.com","us-west-1.elasticbeanstalk.com","us-west-2.elasticbeanstalk.com","*.elb.amazonaws.com","*.elb.amazonaws.com.cn","s3.amazonaws.com","s3-ap-northeast-1.amazonaws.com","s3-ap-northeast-2.amazonaws.com","s3-ap-south-1.amazonaws.com","s3-ap-southeast-1.amazonaws.com","s3-ap-southeast-2.amazonaws.com","s3-ca-central-1.amazonaws.com","s3-eu-central-1.amazonaws.com","s3-eu-west-1.amazonaws.com","s3-eu-west-2.amazonaws.com","s3-eu-west-3.amazonaws.com","s3-external-1.amazonaws.com","s3-fips-us-gov-west-1.amazonaws.com","s3-sa-east-1.amazonaws.com","s3-us-gov-west-1.amazonaws.com","s3-us-east-2.amazonaws.com","s3-us-west-1.amazonaws.com","s3-us-west-2.amazonaws.com","s3.ap-northeast-2.amazonaws.com","s3.ap-south-1.amazonaws.com","s3.cn-north-1.amazonaws.com.cn","s3.ca-central-1.amazonaws.com","s3.eu-central-1.amazonaws.com","s3.eu-west-2.amazonaws.com","s3.eu-west-3.amazonaws.com","s3.us-east-2.amazonaws.com","s3.dualstack.ap-northeast-1.amazonaws.com","s3.dualstack.ap-northeast-2.amazonaws.com","s3.dualstack.ap-south-1.amazonaws.com","s3.dualstack.ap-southeast-1.amazonaws.com","s3.dualstack.ap-southeast-2.amazonaws.com","s3.dualstack.ca-central-1.amazonaws.com","s3.dualstack.eu-central-1.amazonaws.com","s3.dualstack.eu-west-1.amazonaws.com","s3.dualstack.eu-west-2.amazonaws.com","s3.dualstack.eu-west-3.amazonaws.com","s3.dualstack.sa-east-1.amazonaws.com","s3.dualstack.us-east-1.amazonaws.com","s3.dualstack.us-east-2.amazonaws.com","s3-website-us-east-1.amazonaws.com","s3-website-us-west-1.amazonaws.com","s3-website-us-west-2.amazonaws.com","s3-website-ap-northeast-1.amazonaws.com","s3-website-ap-southeast-1.amazonaws.com","s3-website-ap-southeast-2.amazonaws.com","s3-website-eu-west-1.amazonaws.com","s3-website-sa-east-1.amazonaws.com","s3-website.ap-northeast-2.amazonaws.com","s3-website.ap-south-1.amazonaws.com","s3-website.ca-central-1.amazonaws.com","s3-website.eu-central-1.amazonaws.com","s3-website.eu-west-2.amazonaws.com","s3-website.eu-west-3.amazonaws.com","s3-website.us-east-2.amazonaws.com","t3l3p0rt.net","tele.amune.org","apigee.io","on-aptible.com","user.party.eus","pimienta.org","poivron.org","potager.org","sweetpepper.org","myasustor.com","myfritz.net","*.awdev.ca","*.advisor.ws","backplaneapp.io","betainabox.com","bnr.la","blackbaudcdn.net","boomla.net","boxfuse.io","square7.ch","bplaced.com","bplaced.de","square7.de","bplaced.net","square7.net","browsersafetymark.io","mycd.eu","ae.org","ar.com","br.com","cn.com","com.de","com.se","de.com","eu.com","gb.com","gb.net","hu.com","hu.net","jp.net","jpn.com","kr.com","mex.com","no.com","qc.com","ru.com","sa.com","se.net","uk.com","uk.net","us.com","uy.com","za.bz","za.com","africa.com","gr.com","in.net","us.org","co.com","c.la","certmgr.org","xenapponazure.com","virtueeldomein.nl","cleverapps.io","c66.me","cloud66.ws","jdevcloud.com","wpdevcloud.com","cloudaccess.host","freesite.host","cloudaccess.net","cloudcontrolled.com","cloudcontrolapp.com","co.ca","*.otap.co","co.cz","c.cdn77.org","cdn77-ssl.net","r.cdn77.net","rsc.cdn77.org","ssl.origin.cdn77-secure.org","cloudns.asia","cloudns.biz","cloudns.club","cloudns.cc","cloudns.eu","cloudns.in","cloudns.info","cloudns.org","cloudns.pro","cloudns.pw","cloudns.us","cloudeity.net","cnpy.gdn","co.nl","co.no","webhosting.be","hosting-cluster.nl","dyn.cosidns.de","dynamisches-dns.de","dnsupdater.de","internet-dns.de","l-o-g-i-n.de","dynamic-dns.info","feste-ip.net","knx-server.net","static-access.net","realm.cz","*.cryptonomic.net","cupcake.is","cyon.link","cyon.site","daplie.me","localhost.daplie.me","dattolocal.com","dattorelay.com","dattoweb.com","mydatto.com","dattolocal.net","mydatto.net","biz.dk","co.dk","firm.dk","reg.dk","store.dk","debian.net","dedyn.io","dnshome.de","drayddns.com","dreamhosters.com","mydrobo.com","drud.io","drud.us","duckdns.org","dy.fi","tunk.org","dyndns-at-home.com","dyndns-at-work.com","dyndns-blog.com","dyndns-free.com","dyndns-home.com","dyndns-ip.com","dyndns-mail.com","dyndns-office.com","dyndns-pics.com","dyndns-remote.com","dyndns-server.com","dyndns-web.com","dyndns-wiki.com","dyndns-work.com","dyndns.biz","dyndns.info","dyndns.org","dyndns.tv","at-band-camp.net","ath.cx","barrel-of-knowledge.info","barrell-of-knowledge.info","better-than.tv","blogdns.com","blogdns.net","blogdns.org","blogsite.org","boldlygoingnowhere.org","broke-it.net","buyshouses.net","cechire.com","dnsalias.com","dnsalias.net","dnsalias.org","dnsdojo.com","dnsdojo.net","dnsdojo.org","does-it.net","doesntexist.com","doesntexist.org","dontexist.com","dontexist.net","dontexist.org","doomdns.com","doomdns.org","dvrdns.org","dyn-o-saur.com","dynalias.com","dynalias.net","dynalias.org","dynathome.net","dyndns.ws","endofinternet.net","endofinternet.org","endoftheinternet.org","est-a-la-maison.com","est-a-la-masion.com","est-le-patron.com","est-mon-blogueur.com","for-better.biz","for-more.biz","for-our.info","for-some.biz","for-the.biz","forgot.her.name","forgot.his.name","from-ak.com","from-al.com","from-ar.com","from-az.net","from-ca.com","from-co.net","from-ct.com","from-dc.com","from-de.com","from-fl.com","from-ga.com","from-hi.com","from-ia.com","from-id.com","from-il.com","from-in.com","from-ks.com","from-ky.com","from-la.net","from-ma.com","from-md.com","from-me.org","from-mi.com","from-mn.com","from-mo.com","from-ms.com","from-mt.com","from-nc.com","from-nd.com","from-ne.com","from-nh.com","from-nj.com","from-nm.com","from-nv.com","from-ny.net","from-oh.com","from-ok.com","from-or.com","from-pa.com","from-pr.com","from-ri.com","from-sc.com","from-sd.com","from-tn.com","from-tx.com","from-ut.com","from-va.com","from-vt.com","from-wa.com","from-wi.com","from-wv.com","from-wy.com","ftpaccess.cc","fuettertdasnetz.de","game-host.org","game-server.cc","getmyip.com","gets-it.net","go.dyndns.org","gotdns.com","gotdns.org","groks-the.info","groks-this.info","ham-radio-op.net","here-for-more.info","hobby-site.com","hobby-site.org","home.dyndns.org","homedns.org","homeftp.net","homeftp.org","homeip.net","homelinux.com","homelinux.net","homelinux.org","homeunix.com","homeunix.net","homeunix.org","iamallama.com","in-the-band.net","is-a-anarchist.com","is-a-blogger.com","is-a-bookkeeper.com","is-a-bruinsfan.org","is-a-bulls-fan.com","is-a-candidate.org","is-a-caterer.com","is-a-celticsfan.org","is-a-chef.com","is-a-chef.net","is-a-chef.org","is-a-conservative.com","is-a-cpa.com","is-a-cubicle-slave.com","is-a-democrat.com","is-a-designer.com","is-a-doctor.com","is-a-financialadvisor.com","is-a-geek.com","is-a-geek.net","is-a-geek.org","is-a-green.com","is-a-guru.com","is-a-hard-worker.com","is-a-hunter.com","is-a-knight.org","is-a-landscaper.com","is-a-lawyer.com","is-a-liberal.com","is-a-libertarian.com","is-a-linux-user.org","is-a-llama.com","is-a-musician.com","is-a-nascarfan.com","is-a-nurse.com","is-a-painter.com","is-a-patsfan.org","is-a-personaltrainer.com","is-a-photographer.com","is-a-player.com","is-a-republican.com","is-a-rockstar.com","is-a-socialist.com","is-a-soxfan.org","is-a-student.com","is-a-teacher.com","is-a-techie.com","is-a-therapist.com","is-an-accountant.com","is-an-actor.com","is-an-actress.com","is-an-anarchist.com","is-an-artist.com","is-an-engineer.com","is-an-entertainer.com","is-by.us","is-certified.com","is-found.org","is-gone.com","is-into-anime.com","is-into-cars.com","is-into-cartoons.com","is-into-games.com","is-leet.com","is-lost.org","is-not-certified.com","is-saved.org","is-slick.com","is-uberleet.com","is-very-bad.org","is-very-evil.org","is-very-good.org","is-very-nice.org","is-very-sweet.org","is-with-theband.com","isa-geek.com","isa-geek.net","isa-geek.org","isa-hockeynut.com","issmarterthanyou.com","isteingeek.de","istmein.de","kicks-ass.net","kicks-ass.org","knowsitall.info","land-4-sale.us","lebtimnetz.de","leitungsen.de","likes-pie.com","likescandy.com","merseine.nu","mine.nu","misconfused.org","mypets.ws","myphotos.cc","neat-url.com","office-on-the.net","on-the-web.tv","podzone.net","podzone.org","readmyblog.org","saves-the-whales.com","scrapper-site.net","scrapping.cc","selfip.biz","selfip.com","selfip.info","selfip.net","selfip.org","sells-for-less.com","sells-for-u.com","sells-it.net","sellsyourhome.org","servebbs.com","servebbs.net","servebbs.org","serveftp.net","serveftp.org","servegame.org","shacknet.nu","simple-url.com","space-to-rent.com","stuff-4-sale.org","stuff-4-sale.us","teaches-yoga.com","thruhere.net","traeumtgerade.de","webhop.biz","webhop.info","webhop.net","webhop.org","worse-than.tv","writesthisblog.com","ddnss.de","dyn.ddnss.de","dyndns.ddnss.de","dyndns1.de","dyn-ip24.de","home-webserver.de","dyn.home-webserver.de","myhome-server.de","ddnss.org","definima.net","definima.io","bci.dnstrace.pro","ddnsfree.com","ddnsgeek.com","giize.com","gleeze.com","kozow.com","loseyourip.com","ooguy.com","theworkpc.com","casacam.net","dynu.net","accesscam.org","camdvr.org","freeddns.org","mywire.org","webredirect.org","myddns.rocks","blogsite.xyz","dynv6.net","e4.cz","mytuleap.com","enonic.io","customer.enonic.io","eu.org","al.eu.org","asso.eu.org","at.eu.org","au.eu.org","be.eu.org","bg.eu.org","ca.eu.org","cd.eu.org","ch.eu.org","cn.eu.org","cy.eu.org","cz.eu.org","de.eu.org","dk.eu.org","edu.eu.org","ee.eu.org","es.eu.org","fi.eu.org","fr.eu.org","gr.eu.org","hr.eu.org","hu.eu.org","ie.eu.org","il.eu.org","in.eu.org","int.eu.org","is.eu.org","it.eu.org","jp.eu.org","kr.eu.org","lt.eu.org","lu.eu.org","lv.eu.org","mc.eu.org","me.eu.org","mk.eu.org","mt.eu.org","my.eu.org","net.eu.org","ng.eu.org","nl.eu.org","no.eu.org","nz.eu.org","paris.eu.org","pl.eu.org","pt.eu.org","q-a.eu.org","ro.eu.org","ru.eu.org","se.eu.org","si.eu.org","sk.eu.org","tr.eu.org","uk.eu.org","us.eu.org","eu-1.evennode.com","eu-2.evennode.com","eu-3.evennode.com","eu-4.evennode.com","us-1.evennode.com","us-2.evennode.com","us-3.evennode.com","us-4.evennode.com","twmail.cc","twmail.net","twmail.org","mymailer.com.tw","url.tw","apps.fbsbx.com","ru.net","adygeya.ru","bashkiria.ru","bir.ru","cbg.ru","com.ru","dagestan.ru","grozny.ru","kalmykia.ru","kustanai.ru","marine.ru","mordovia.ru","msk.ru","mytis.ru","nalchik.ru","nov.ru","pyatigorsk.ru","spb.ru","vladikavkaz.ru","vladimir.ru","abkhazia.su","adygeya.su","aktyubinsk.su","arkhangelsk.su","armenia.su","ashgabad.su","azerbaijan.su","balashov.su","bashkiria.su","bryansk.su","bukhara.su","chimkent.su","dagestan.su","east-kazakhstan.su","exnet.su","georgia.su","grozny.su","ivanovo.su","jambyl.su","kalmykia.su","kaluga.su","karacol.su","karaganda.su","karelia.su","khakassia.su","krasnodar.su","kurgan.su","kustanai.su","lenug.su","mangyshlak.su","mordovia.su","msk.su","murmansk.su","nalchik.su","navoi.su","north-kazakhstan.su","nov.su","obninsk.su","penza.su","pokrovsk.su","sochi.su","spb.su","tashkent.su","termez.su","togliatti.su","troitsk.su","tselinograd.su","tula.su","tuva.su","vladikavkaz.su","vladimir.su","vologda.su","channelsdvr.net","fastlylb.net","map.fastlylb.net","freetls.fastly.net","map.fastly.net","a.prod.fastly.net","global.prod.fastly.net","a.ssl.fastly.net","b.ssl.fastly.net","global.ssl.fastly.net","fastpanel.direct","fastvps-server.com","fhapp.xyz","fedorainfracloud.org","fedorapeople.org","cloud.fedoraproject.org","app.os.fedoraproject.org","app.os.stg.fedoraproject.org","filegear.me","firebaseapp.com","flynnhub.com","flynnhosting.net","freebox-os.com","freeboxos.com","fbx-os.fr","fbxos.fr","freebox-os.fr","freeboxos.fr","freedesktop.org","*.futurecms.at","*.ex.futurecms.at","*.in.futurecms.at","futurehosting.at","futuremailing.at","*.ex.ortsinfo.at","*.kunden.ortsinfo.at","*.statics.cloud","service.gov.uk","github.io","githubusercontent.com","gitlab.io","homeoffice.gov.uk","ro.im","shop.ro","goip.de","*.0emm.com","appspot.com","blogspot.ae","blogspot.al","blogspot.am","blogspot.ba","blogspot.be","blogspot.bg","blogspot.bj","blogspot.ca","blogspot.cf","blogspot.ch","blogspot.cl","blogspot.co.at","blogspot.co.id","blogspot.co.il","blogspot.co.ke","blogspot.co.nz","blogspot.co.uk","blogspot.co.za","blogspot.com","blogspot.com.ar","blogspot.com.au","blogspot.com.br","blogspot.com.by","blogspot.com.co","blogspot.com.cy","blogspot.com.ee","blogspot.com.eg","blogspot.com.es","blogspot.com.mt","blogspot.com.ng","blogspot.com.tr","blogspot.com.uy","blogspot.cv","blogspot.cz","blogspot.de","blogspot.dk","blogspot.fi","blogspot.fr","blogspot.gr","blogspot.hk","blogspot.hr","blogspot.hu","blogspot.ie","blogspot.in","blogspot.is","blogspot.it","blogspot.jp","blogspot.kr","blogspot.li","blogspot.lt","blogspot.lu","blogspot.md","blogspot.mk","blogspot.mr","blogspot.mx","blogspot.my","blogspot.nl","blogspot.no","blogspot.pe","blogspot.pt","blogspot.qa","blogspot.re","blogspot.ro","blogspot.rs","blogspot.ru","blogspot.se","blogspot.sg","blogspot.si","blogspot.sk","blogspot.sn","blogspot.td","blogspot.tw","blogspot.ug","blogspot.vn","cloudfunctions.net","cloud.goog","codespot.com","googleapis.com","googlecode.com","pagespeedmobilizer.com","publishproxy.com","withgoogle.com","withyoutube.com","hashbang.sh","hasura.app","hasura-app.io","hepforge.org","herokuapp.com","herokussl.com","myravendb.com","ravendb.community","ravendb.me","development.run","ravendb.run","moonscale.net","iki.fi","biz.at","info.at","info.cx","ac.leg.br","al.leg.br","am.leg.br","ap.leg.br","ba.leg.br","ce.leg.br","df.leg.br","es.leg.br","go.leg.br","ma.leg.br","mg.leg.br","ms.leg.br","mt.leg.br","pa.leg.br","pb.leg.br","pe.leg.br","pi.leg.br","pr.leg.br","rj.leg.br","rn.leg.br","ro.leg.br","rr.leg.br","rs.leg.br","sc.leg.br","se.leg.br","sp.leg.br","to.leg.br","pixolino.com","ipifony.net","mein-iserv.de","test-iserv.de","myjino.ru","*.hosting.myjino.ru","*.landing.myjino.ru","*.spectrum.myjino.ru","*.vps.myjino.ru","*.triton.zone","*.cns.joyent.com","js.org","keymachine.de","knightpoint.systems","co.krd","edu.krd","git-repos.de","lcube-server.de","svn-repos.de","app.lmpm.com","linkitools.space","linkyard.cloud","linkyard-cloud.ch","we.bs","uklugs.org","glug.org.uk","lug.org.uk","lugs.org.uk","barsy.bg","barsy.co.uk","barsyonline.co.uk","barsycenter.com","barsyonline.com","barsy.club","barsy.de","barsy.eu","barsy.in","barsy.info","barsy.io","barsy.me","barsy.menu","barsy.mobi","barsy.net","barsy.online","barsy.org","barsy.pro","barsy.pub","barsy.shop","barsy.site","barsy.support","barsy.uk","*.magentosite.cloud","mayfirst.info","mayfirst.org","hb.cldmail.ru","miniserver.com","memset.net","cloud.metacentrum.cz","custom.metacentrum.cz","flt.cloud.muni.cz","usr.cloud.muni.cz","meteorapp.com","eu.meteorapp.com","co.pl","azurecontainer.io","azurewebsites.net","azure-mobile.net","cloudapp.net","mozilla-iot.org","bmoattachments.org","net.ru","org.ru","pp.ru","bitballoon.com","netlify.com","4u.com","ngrok.io","nh-serv.co.uk","nfshost.com","dnsking.ch","mypi.co","n4t.co","001www.com","ddnslive.com","myiphost.com","forumz.info","16-b.it","32-b.it","64-b.it","soundcast.me","tcp4.me","dnsup.net","hicam.net","now-dns.net","ownip.net","vpndns.net","dynserv.org","now-dns.org","x443.pw","now-dns.top","ntdll.top","freeddns.us","crafting.xyz","zapto.xyz","nsupdate.info","nerdpol.ovh","blogsyte.com","brasilia.me","cable-modem.org","ciscofreak.com","collegefan.org","couchpotatofries.org","damnserver.com","ddns.me","ditchyourip.com","dnsfor.me","dnsiskinky.com","dvrcam.info","dynns.com","eating-organic.net","fantasyleague.cc","geekgalaxy.com","golffan.us","health-carereform.com","homesecuritymac.com","homesecuritypc.com","hopto.me","ilovecollege.info","loginto.me","mlbfan.org","mmafan.biz","myactivedirectory.com","mydissent.net","myeffect.net","mymediapc.net","mypsx.net","mysecuritycamera.com","mysecuritycamera.net","mysecuritycamera.org","net-freaks.com","nflfan.org","nhlfan.net","no-ip.ca","no-ip.co.uk","no-ip.net","noip.us","onthewifi.com","pgafan.net","point2this.com","pointto.us","privatizehealthinsurance.net","quicksytes.com","read-books.org","securitytactics.com","serveexchange.com","servehumour.com","servep2p.com","servesarcasm.com","stufftoread.com","ufcfan.org","unusualperson.com","workisboring.com","3utilities.com","bounceme.net","ddns.net","ddnsking.com","gotdns.ch","hopto.org","myftp.biz","myftp.org","myvnc.com","no-ip.biz","no-ip.info","no-ip.org","noip.me","redirectme.net","servebeer.com","serveblog.net","servecounterstrike.com","serveftp.com","servegame.com","servehalflife.com","servehttp.com","serveirc.com","serveminecraft.net","servemp3.com","servepics.com","servequake.com","sytes.net","webhop.me","zapto.org","stage.nodeart.io","nodum.co","nodum.io","pcloud.host","nyc.mn","nom.ae","nom.af","nom.ai","nom.al","nym.by","nym.bz","nom.cl","nom.gd","nom.ge","nom.gl","nym.gr","nom.gt","nym.gy","nom.hn","nym.ie","nom.im","nom.ke","nym.kz","nym.la","nym.lc","nom.li","nym.li","nym.lt","nym.lu","nym.me","nom.mk","nym.mn","nym.mx","nom.nu","nym.nz","nym.pe","nym.pt","nom.pw","nom.qa","nym.ro","nom.rs","nom.si","nym.sk","nom.st","nym.su","nym.sx","nom.tj","nym.tw","nom.ug","nom.uy","nom.vc","nom.vg","cya.gg","cloudycluster.net","nid.io","opencraft.hosting","operaunite.com","outsystemscloud.com","ownprovider.com","own.pm","ox.rs","oy.lc","pgfog.com","pagefrontapp.com","art.pl","gliwice.pl","krakow.pl","poznan.pl","wroc.pl","zakopane.pl","pantheonsite.io","gotpantheon.com","mypep.link","on-web.fr","*.platform.sh","*.platformsh.site","xen.prgmr.com","priv.at","protonet.io","chirurgiens-dentistes-en-france.fr","byen.site","ras.ru","qa2.com","dev-myqnapcloud.com","alpha-myqnapcloud.com","myqnapcloud.com","*.quipelements.com","vapor.cloud","vaporcloud.io","rackmaze.com","rackmaze.net","rhcloud.com","resindevice.io","devices.resinstaging.io","hzc.io","wellbeingzone.eu","ptplus.fit","wellbeingzone.co.uk","sandcats.io","logoip.de","logoip.com","schokokeks.net","scrysec.com","firewall-gateway.com","firewall-gateway.de","my-gateway.de","my-router.de","spdns.de","spdns.eu","firewall-gateway.net","my-firewall.org","myfirewall.org","spdns.org","*.s5y.io","*.sensiosite.cloud","biz.ua","co.ua","pp.ua","shiftedit.io","myshopblocks.com","1kapp.com","appchizi.com","applinzi.com","sinaapp.com","vipsinaapp.com","bounty-full.com","alpha.bounty-full.com","beta.bounty-full.com","static.land","dev.static.land","sites.static.land","apps.lair.io","*.stolos.io","spacekit.io","customer.speedpartner.de","storj.farm","utwente.io","temp-dns.com","diskstation.me","dscloud.biz","dscloud.me","dscloud.mobi","dsmynas.com","dsmynas.net","dsmynas.org","familyds.com","familyds.net","familyds.org","i234.me","myds.me","synology.me","vpnplus.to","taifun-dns.de","gda.pl","gdansk.pl","gdynia.pl","med.pl","sopot.pl","gwiddle.co.uk","cust.dev.thingdust.io","cust.disrec.thingdust.io","cust.prod.thingdust.io","cust.testing.thingdust.io","bloxcms.com","townnews-staging.com","12hp.at","2ix.at","4lima.at","lima-city.at","12hp.ch","2ix.ch","4lima.ch","lima-city.ch","trafficplex.cloud","de.cool","12hp.de","2ix.de","4lima.de","lima-city.de","1337.pictures","clan.rip","lima-city.rocks","webspace.rocks","lima.zone","*.transurl.be","*.transurl.eu","*.transurl.nl","tuxfamily.org","dd-dns.de","diskstation.eu","diskstation.org","dray-dns.de","draydns.de","dyn-vpn.de","dynvpn.de","mein-vigor.de","my-vigor.de","my-wan.de","syno-ds.de","synology-diskstation.de","synology-ds.de","uber.space","*.uberspace.de","hk.com","hk.org","ltd.hk","inc.hk","virtualuser.de","virtual-user.de","lib.de.us","2038.io","router.management","v-info.info","wedeploy.io","wedeploy.me","wedeploy.sh","remotewd.com","wmflabs.org","half.host","xnbay.com","u2.xnbay.com","u2-local.xnbay.com","cistron.nl","demon.nl","xs4all.space","official.academy","yolasite.com","ybo.faith","yombo.me","homelink.one","ybo.party","ybo.review","ybo.science","ybo.trade","nohost.me","noho.st","za.net","za.org","now.sh","zone.id"]
-},{}],292:[function(require,module,exports){
+},{}],294:[function(require,module,exports){
 /*eslint no-var:0, prefer-arrow-callback: 0, object-shorthand: 0 */
 'use strict';
 
@@ -76191,7 +76598,7 @@ exports.isValid = function (domain) {
   return Boolean(parsed.domain && parsed.listed);
 };
 
-},{"./data/rules.json":291,"punycode":120}],293:[function(require,module,exports){
+},{"./data/rules.json":293,"punycode":120}],295:[function(require,module,exports){
 exports.publicEncrypt = require('./publicEncrypt')
 exports.privateDecrypt = require('./privateDecrypt')
 
@@ -76203,7 +76610,7 @@ exports.publicDecrypt = function publicDecrypt (key, buf) {
   return exports.privateDecrypt(key, buf, true)
 }
 
-},{"./privateDecrypt":295,"./publicEncrypt":296}],294:[function(require,module,exports){
+},{"./privateDecrypt":297,"./publicEncrypt":298}],296:[function(require,module,exports){
 var createHash = require('create-hash')
 var Buffer = require('safe-buffer').Buffer
 
@@ -76224,7 +76631,7 @@ function i2ops (c) {
   return out
 }
 
-},{"create-hash":130,"safe-buffer":341}],295:[function(require,module,exports){
+},{"create-hash":130,"safe-buffer":343}],297:[function(require,module,exports){
 var parseKeys = require('parse-asn1')
 var mgf = require('./mgf')
 var xor = require('./xor')
@@ -76331,7 +76738,7 @@ function compare (a, b) {
   return dif
 }
 
-},{"./mgf":294,"./withPublic":297,"./xor":298,"bn.js":87,"browserify-rsa":110,"create-hash":130,"parse-asn1":273,"safe-buffer":341}],296:[function(require,module,exports){
+},{"./mgf":296,"./withPublic":299,"./xor":300,"bn.js":87,"browserify-rsa":110,"create-hash":130,"parse-asn1":275,"safe-buffer":343}],298:[function(require,module,exports){
 var parseKeys = require('parse-asn1')
 var randomBytes = require('randombytes')
 var createHash = require('create-hash')
@@ -76421,7 +76828,7 @@ function nonZero (len) {
   return out
 }
 
-},{"./mgf":294,"./withPublic":297,"./xor":298,"bn.js":87,"browserify-rsa":110,"create-hash":130,"parse-asn1":273,"randombytes":307,"safe-buffer":341}],297:[function(require,module,exports){
+},{"./mgf":296,"./withPublic":299,"./xor":300,"bn.js":87,"browserify-rsa":110,"create-hash":130,"parse-asn1":275,"randombytes":309,"safe-buffer":343}],299:[function(require,module,exports){
 var BN = require('bn.js')
 var Buffer = require('safe-buffer').Buffer
 
@@ -76435,7 +76842,7 @@ function withPublic (paddedMsg, key) {
 
 module.exports = withPublic
 
-},{"bn.js":87,"safe-buffer":341}],298:[function(require,module,exports){
+},{"bn.js":87,"safe-buffer":343}],300:[function(require,module,exports){
 module.exports = function xor (a, b) {
   var len = a.length
   var i = -1
@@ -76445,7 +76852,7 @@ module.exports = function xor (a, b) {
   return a
 }
 
-},{}],299:[function(require,module,exports){
+},{}],301:[function(require,module,exports){
 'use strict';
 
 var replace = String.prototype.replace;
@@ -76465,7 +76872,7 @@ module.exports = {
     RFC3986: 'RFC3986'
 };
 
-},{}],300:[function(require,module,exports){
+},{}],302:[function(require,module,exports){
 'use strict';
 
 var stringify = require('./stringify');
@@ -76478,7 +76885,7 @@ module.exports = {
     stringify: stringify
 };
 
-},{"./formats":299,"./parse":301,"./stringify":302}],301:[function(require,module,exports){
+},{"./formats":301,"./parse":303,"./stringify":304}],303:[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -76654,7 +77061,7 @@ module.exports = function (str, opts) {
     return utils.compact(obj);
 };
 
-},{"./utils":303}],302:[function(require,module,exports){
+},{"./utils":305}],304:[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -76866,7 +77273,7 @@ module.exports = function (object, opts) {
     return joined.length > 0 ? prefix + joined : '';
 };
 
-},{"./formats":299,"./utils":303}],303:[function(require,module,exports){
+},{"./formats":301,"./utils":305}],305:[function(require,module,exports){
 'use strict';
 
 var has = Object.prototype.hasOwnProperty;
@@ -77081,7 +77488,7 @@ module.exports = {
     merge: merge
 };
 
-},{}],304:[function(require,module,exports){
+},{}],306:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -77167,7 +77574,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],305:[function(require,module,exports){
+},{}],307:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -77254,13 +77661,13 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],306:[function(require,module,exports){
+},{}],308:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":304,"./encode":305}],307:[function(require,module,exports){
+},{"./decode":306,"./encode":307}],309:[function(require,module,exports){
 (function (process,global){
 'use strict'
 
@@ -77302,7 +77709,7 @@ function randomBytes (size, cb) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":282,"safe-buffer":341}],308:[function(require,module,exports){
+},{"_process":284,"safe-buffer":343}],310:[function(require,module,exports){
 (function (process,global){
 'use strict'
 
@@ -77414,10 +77821,10 @@ function randomFillSync (buf, offset, size) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":282,"randombytes":307,"safe-buffer":341}],309:[function(require,module,exports){
+},{"_process":284,"randombytes":309,"safe-buffer":343}],311:[function(require,module,exports){
 module.exports = require('./lib/_stream_duplex.js');
 
-},{"./lib/_stream_duplex.js":310}],310:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":312}],312:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -77549,7 +77956,7 @@ Duplex.prototype._destroy = function (err, cb) {
 
   pna.nextTick(cb, err);
 };
-},{"./_stream_readable":312,"./_stream_writable":314,"core-util-is":128,"inherits":217,"process-nextick-args":281}],311:[function(require,module,exports){
+},{"./_stream_readable":314,"./_stream_writable":316,"core-util-is":128,"inherits":217,"process-nextick-args":283}],313:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -77597,7 +78004,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":313,"core-util-is":128,"inherits":217}],312:[function(require,module,exports){
+},{"./_stream_transform":315,"core-util-is":128,"inherits":217}],314:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -78619,7 +79026,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":310,"./internal/streams/BufferList":315,"./internal/streams/destroy":316,"./internal/streams/stream":317,"_process":282,"core-util-is":128,"events":166,"inherits":217,"isarray":220,"process-nextick-args":281,"safe-buffer":341,"string_decoder/":318,"util":89}],313:[function(require,module,exports){
+},{"./_stream_duplex":312,"./internal/streams/BufferList":317,"./internal/streams/destroy":318,"./internal/streams/stream":319,"_process":284,"core-util-is":128,"events":166,"inherits":217,"isarray":220,"process-nextick-args":283,"safe-buffer":343,"string_decoder/":320,"util":89}],315:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -78834,7 +79241,7 @@ function done(stream, er, data) {
 
   return stream.push(null);
 }
-},{"./_stream_duplex":310,"core-util-is":128,"inherits":217}],314:[function(require,module,exports){
+},{"./_stream_duplex":312,"core-util-is":128,"inherits":217}],316:[function(require,module,exports){
 (function (process,global,setImmediate){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -79524,7 +79931,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":310,"./internal/streams/destroy":316,"./internal/streams/stream":317,"_process":282,"core-util-is":128,"inherits":217,"process-nextick-args":281,"safe-buffer":341,"timers":383,"util-deprecate":397}],315:[function(require,module,exports){
+},{"./_stream_duplex":312,"./internal/streams/destroy":318,"./internal/streams/stream":319,"_process":284,"core-util-is":128,"inherits":217,"process-nextick-args":283,"safe-buffer":343,"timers":385,"util-deprecate":399}],317:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -79604,7 +80011,7 @@ if (util && util.inspect && util.inspect.custom) {
     return this.constructor.name + ' ' + obj;
   };
 }
-},{"safe-buffer":341,"util":89}],316:[function(require,module,exports){
+},{"safe-buffer":343,"util":89}],318:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -79679,10 +80086,10 @@ module.exports = {
   destroy: destroy,
   undestroy: undestroy
 };
-},{"process-nextick-args":281}],317:[function(require,module,exports){
+},{"process-nextick-args":283}],319:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":166}],318:[function(require,module,exports){
+},{"events":166}],320:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -79979,10 +80386,10 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":341}],319:[function(require,module,exports){
+},{"safe-buffer":343}],321:[function(require,module,exports){
 module.exports = require('./readable').PassThrough
 
-},{"./readable":320}],320:[function(require,module,exports){
+},{"./readable":322}],322:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = exports;
 exports.Readable = exports;
@@ -79991,13 +80398,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":310,"./lib/_stream_passthrough.js":311,"./lib/_stream_readable.js":312,"./lib/_stream_transform.js":313,"./lib/_stream_writable.js":314}],321:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":312,"./lib/_stream_passthrough.js":313,"./lib/_stream_readable.js":314,"./lib/_stream_transform.js":315,"./lib/_stream_writable.js":316}],323:[function(require,module,exports){
 module.exports = require('./readable').Transform
 
-},{"./readable":320}],322:[function(require,module,exports){
+},{"./readable":322}],324:[function(require,module,exports){
 module.exports = require('./lib/_stream_writable.js');
 
-},{"./lib/_stream_writable.js":314}],323:[function(require,module,exports){
+},{"./lib/_stream_writable.js":316}],325:[function(require,module,exports){
 'use strict';
 
 var core = require('../'),
@@ -80073,7 +80480,7 @@ module.exports = function (options) {
 
 };
 
-},{"../":325,"lodash/isArray":235,"lodash/isFunction":236,"lodash/isObjectLike":238}],324:[function(require,module,exports){
+},{"../":327,"lodash/isArray":235,"lodash/isFunction":236,"lodash/isObjectLike":238}],326:[function(require,module,exports){
 'use strict';
 
 
@@ -80137,7 +80544,7 @@ module.exports = {
     TransformError: TransformError
 };
 
-},{}],325:[function(require,module,exports){
+},{}],327:[function(require,module,exports){
 'use strict';
 
 var errors = require('./errors.js'),
@@ -80306,7 +80713,7 @@ module.exports = function (options) {
 
 };
 
-},{"./errors.js":324,"lodash/isFunction":236,"lodash/isObjectLike":238,"lodash/isString":239,"lodash/isUndefined":240}],326:[function(require,module,exports){
+},{"./errors.js":326,"lodash/isFunction":236,"lodash/isObjectLike":238,"lodash/isString":239,"lodash/isUndefined":240}],328:[function(require,module,exports){
 'use strict';
 
 var Bluebird = require('bluebird').getNewLibraryCopy(),
@@ -80360,7 +80767,7 @@ request.bindCLS = function RP$bindCLS() {
 
 module.exports = request;
 
-},{"bluebird":86,"os":257,"request":327,"request-promise-core/configure/request2":323,"stealthy-require":376,"tough-cookie":385}],327:[function(require,module,exports){
+},{"bluebird":86,"os":259,"request":329,"request-promise-core/configure/request2":325,"stealthy-require":378,"tough-cookie":387}],329:[function(require,module,exports){
 // Copyright 2010-2012 Mikeal Rogers
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -80517,7 +80924,7 @@ Object.defineProperty(request, 'debug', {
   }
 })
 
-},{"./lib/cookies":329,"./lib/helpers":333,"./request":339,"extend":168}],328:[function(require,module,exports){
+},{"./lib/cookies":331,"./lib/helpers":335,"./request":341,"extend":168}],330:[function(require,module,exports){
 'use strict'
 
 var caseless = require('caseless')
@@ -80686,7 +81093,7 @@ Auth.prototype.onResponse = function (response) {
 
 exports.Auth = Auth
 
-},{"./helpers":333,"caseless":124,"uuid/v4":402}],329:[function(require,module,exports){
+},{"./helpers":335,"caseless":124,"uuid/v4":404}],331:[function(require,module,exports){
 'use strict'
 
 var tough = require('tough-cookie')
@@ -80726,7 +81133,7 @@ exports.jar = function (store) {
   return new RequestJar(store)
 }
 
-},{"tough-cookie":385}],330:[function(require,module,exports){
+},{"tough-cookie":387}],332:[function(require,module,exports){
 (function (process){
 'use strict'
 
@@ -80809,7 +81216,7 @@ function getProxyFromURI (uri) {
 module.exports = getProxyFromURI
 
 }).call(this,require('_process'))
-},{"_process":282}],331:[function(require,module,exports){
+},{"_process":284}],333:[function(require,module,exports){
 'use strict'
 
 var fs = require('fs')
@@ -81016,7 +81423,7 @@ Har.prototype.options = function (options) {
 
 exports.Har = Har
 
-},{"extend":168,"fs":119,"har-validator":194,"querystring":306}],332:[function(require,module,exports){
+},{"extend":168,"fs":119,"har-validator":194,"querystring":308}],334:[function(require,module,exports){
 'use strict'
 
 var crypto = require('crypto')
@@ -81107,7 +81514,7 @@ exports.header = function (uri, method, opts) {
   return header
 }
 
-},{"crypto":134}],333:[function(require,module,exports){
+},{"crypto":134}],335:[function(require,module,exports){
 (function (process,setImmediate){
 'use strict'
 
@@ -81177,7 +81584,7 @@ exports.version = version
 exports.defer = defer
 
 }).call(this,require('_process'),require("timers").setImmediate)
-},{"_process":282,"crypto":134,"json-stringify-safe":225,"safe-buffer":341,"timers":383}],334:[function(require,module,exports){
+},{"_process":284,"crypto":134,"json-stringify-safe":225,"safe-buffer":343,"timers":385}],336:[function(require,module,exports){
 'use strict'
 
 var uuid = require('uuid/v4')
@@ -81291,7 +81698,7 @@ Multipart.prototype.onRequest = function (options) {
 
 exports.Multipart = Multipart
 
-},{"combined-stream":126,"isstream":221,"safe-buffer":341,"uuid/v4":402}],335:[function(require,module,exports){
+},{"combined-stream":126,"isstream":221,"safe-buffer":343,"uuid/v4":404}],337:[function(require,module,exports){
 'use strict'
 
 var url = require('url')
@@ -81441,7 +81848,7 @@ OAuth.prototype.onRequest = function (_oauth) {
 
 exports.OAuth = OAuth
 
-},{"caseless":124,"crypto":134,"oauth-sign":256,"qs":300,"safe-buffer":341,"url":395,"uuid/v4":402}],336:[function(require,module,exports){
+},{"caseless":124,"crypto":134,"oauth-sign":258,"qs":302,"safe-buffer":343,"url":397,"uuid/v4":404}],338:[function(require,module,exports){
 'use strict'
 
 var qs = require('qs')
@@ -81493,7 +81900,7 @@ Querystring.prototype.unescape = querystring.unescape
 
 exports.Querystring = Querystring
 
-},{"qs":300,"querystring":306}],337:[function(require,module,exports){
+},{"qs":302,"querystring":308}],339:[function(require,module,exports){
 'use strict'
 
 var url = require('url')
@@ -81649,7 +82056,7 @@ Redirect.prototype.onResponse = function (response) {
 
 exports.Redirect = Redirect
 
-},{"url":395}],338:[function(require,module,exports){
+},{"url":397}],340:[function(require,module,exports){
 'use strict'
 
 var url = require('url')
@@ -81826,7 +82233,7 @@ Tunnel.defaultProxyHeaderWhiteList = defaultProxyHeaderWhiteList
 Tunnel.defaultProxyHeaderExclusiveList = defaultProxyHeaderExclusiveList
 exports.Tunnel = Tunnel
 
-},{"tunnel-agent":392,"url":395}],339:[function(require,module,exports){
+},{"tunnel-agent":394,"url":397}],341:[function(require,module,exports){
 (function (process){
 'use strict'
 
@@ -83381,7 +83788,7 @@ Request.prototype.toJSON = requestToJSON
 module.exports = Request
 
 }).call(this,require('_process'))
-},{"./lib/auth":328,"./lib/cookies":329,"./lib/getProxyFromURI":330,"./lib/har":331,"./lib/hawk":332,"./lib/helpers":333,"./lib/multipart":334,"./lib/oauth":335,"./lib/querystring":336,"./lib/redirect":337,"./lib/tunnel":338,"_process":282,"aws-sign2":81,"aws4":82,"caseless":124,"extend":168,"forever-agent":172,"form-data":173,"http":378,"http-signature":210,"https":215,"is-typedarray":219,"isstream":221,"mime-types":245,"performance-now":280,"safe-buffer":341,"stream":377,"url":395,"util":399,"zlib":118}],340:[function(require,module,exports){
+},{"./lib/auth":330,"./lib/cookies":331,"./lib/getProxyFromURI":332,"./lib/har":333,"./lib/hawk":334,"./lib/helpers":335,"./lib/multipart":336,"./lib/oauth":337,"./lib/querystring":338,"./lib/redirect":339,"./lib/tunnel":340,"_process":284,"aws-sign2":81,"aws4":82,"caseless":124,"extend":168,"forever-agent":172,"form-data":173,"http":380,"http-signature":210,"https":215,"is-typedarray":219,"isstream":221,"mime-types":245,"performance-now":282,"safe-buffer":343,"stream":379,"url":397,"util":401,"zlib":118}],342:[function(require,module,exports){
 'use strict'
 var Buffer = require('buffer').Buffer
 var inherits = require('inherits')
@@ -83546,7 +83953,7 @@ function fn5 (a, b, c, d, e, m, k, s) {
 
 module.exports = RIPEMD160
 
-},{"buffer":122,"hash-base":195,"inherits":217}],341:[function(require,module,exports){
+},{"buffer":122,"hash-base":195,"inherits":217}],343:[function(require,module,exports){
 /* eslint-disable node/no-deprecated-api */
 var buffer = require('buffer')
 var Buffer = buffer.Buffer
@@ -83610,7 +84017,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":122}],342:[function(require,module,exports){
+},{"buffer":122}],344:[function(require,module,exports){
 (function (process){
 /* eslint-disable node/no-deprecated-api */
 
@@ -83691,7 +84098,7 @@ if (!safer.constants) {
 module.exports = safer
 
 }).call(this,require('_process'))
-},{"_process":282,"buffer":122}],343:[function(require,module,exports){
+},{"_process":284,"buffer":122}],345:[function(require,module,exports){
 var Buffer = require('safe-buffer').Buffer
 
 // prototype class for hash functions
@@ -83774,7 +84181,7 @@ Hash.prototype._update = function () {
 
 module.exports = Hash
 
-},{"safe-buffer":341}],344:[function(require,module,exports){
+},{"safe-buffer":343}],346:[function(require,module,exports){
 var exports = module.exports = function SHA (algorithm) {
   algorithm = algorithm.toLowerCase()
 
@@ -83791,7 +84198,7 @@ exports.sha256 = require('./sha256')
 exports.sha384 = require('./sha384')
 exports.sha512 = require('./sha512')
 
-},{"./sha":345,"./sha1":346,"./sha224":347,"./sha256":348,"./sha384":349,"./sha512":350}],345:[function(require,module,exports){
+},{"./sha":347,"./sha1":348,"./sha224":349,"./sha256":350,"./sha384":351,"./sha512":352}],347:[function(require,module,exports){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-0, as defined
  * in FIPS PUB 180-1
@@ -83887,7 +84294,7 @@ Sha.prototype._hash = function () {
 
 module.exports = Sha
 
-},{"./hash":343,"inherits":217,"safe-buffer":341}],346:[function(require,module,exports){
+},{"./hash":345,"inherits":217,"safe-buffer":343}],348:[function(require,module,exports){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-1, as defined
  * in FIPS PUB 180-1
@@ -83988,7 +84395,7 @@ Sha1.prototype._hash = function () {
 
 module.exports = Sha1
 
-},{"./hash":343,"inherits":217,"safe-buffer":341}],347:[function(require,module,exports){
+},{"./hash":345,"inherits":217,"safe-buffer":343}],349:[function(require,module,exports){
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
  * in FIPS 180-2
@@ -84043,7 +84450,7 @@ Sha224.prototype._hash = function () {
 
 module.exports = Sha224
 
-},{"./hash":343,"./sha256":348,"inherits":217,"safe-buffer":341}],348:[function(require,module,exports){
+},{"./hash":345,"./sha256":350,"inherits":217,"safe-buffer":343}],350:[function(require,module,exports){
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
  * in FIPS 180-2
@@ -84180,7 +84587,7 @@ Sha256.prototype._hash = function () {
 
 module.exports = Sha256
 
-},{"./hash":343,"inherits":217,"safe-buffer":341}],349:[function(require,module,exports){
+},{"./hash":345,"inherits":217,"safe-buffer":343}],351:[function(require,module,exports){
 var inherits = require('inherits')
 var SHA512 = require('./sha512')
 var Hash = require('./hash')
@@ -84239,7 +84646,7 @@ Sha384.prototype._hash = function () {
 
 module.exports = Sha384
 
-},{"./hash":343,"./sha512":350,"inherits":217,"safe-buffer":341}],350:[function(require,module,exports){
+},{"./hash":345,"./sha512":352,"inherits":217,"safe-buffer":343}],352:[function(require,module,exports){
 var inherits = require('inherits')
 var Hash = require('./hash')
 var Buffer = require('safe-buffer').Buffer
@@ -84501,7 +84908,7 @@ Sha512.prototype._hash = function () {
 
 module.exports = Sha512
 
-},{"./hash":343,"inherits":217,"safe-buffer":341}],351:[function(require,module,exports){
+},{"./hash":345,"inherits":217,"safe-buffer":343}],353:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 var Buffer = require('safer-buffer').Buffer;
@@ -84671,7 +85078,7 @@ module.exports = {
 	curves: curves
 };
 
-},{"safer-buffer":342}],352:[function(require,module,exports){
+},{"safer-buffer":344}],354:[function(require,module,exports){
 // Copyright 2016 Joyent, Inc.
 
 module.exports = Certificate;
@@ -85083,7 +85490,7 @@ Certificate._oldVersionDetect = function (obj) {
 	return ([1, 0]);
 };
 
-},{"./algs":351,"./errors":355,"./fingerprint":356,"./formats/openssh-cert":359,"./formats/x509":368,"./formats/x509-pem":367,"./identity":369,"./key":371,"./private-key":372,"./signature":373,"./utils":375,"assert-plus":76,"crypto":134,"safer-buffer":342,"util":399}],353:[function(require,module,exports){
+},{"./algs":353,"./errors":357,"./fingerprint":358,"./formats/openssh-cert":361,"./formats/x509":370,"./formats/x509-pem":369,"./identity":371,"./key":373,"./private-key":374,"./signature":375,"./utils":377,"assert-plus":76,"crypto":134,"safer-buffer":344,"util":401}],355:[function(require,module,exports){
 // Copyright 2017 Joyent, Inc.
 
 module.exports = {
@@ -85482,7 +85889,7 @@ function generateECDSA(curve) {
 	}
 }
 
-},{"./algs":351,"./key":371,"./private-key":372,"./utils":375,"assert-plus":76,"crypto":134,"ecc-jsbn":146,"ecc-jsbn/lib/ec":147,"jsbn":222,"safer-buffer":342,"tweetnacl":393}],354:[function(require,module,exports){
+},{"./algs":353,"./key":373,"./private-key":374,"./utils":377,"assert-plus":76,"crypto":134,"ecc-jsbn":146,"ecc-jsbn/lib/ec":147,"jsbn":222,"safer-buffer":344,"tweetnacl":395}],356:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = {
@@ -85576,7 +85983,7 @@ Signer.prototype.sign = function () {
 	return (sigObj);
 };
 
-},{"./signature":373,"assert-plus":76,"safer-buffer":342,"stream":377,"tweetnacl":393,"util":399}],355:[function(require,module,exports){
+},{"./signature":375,"assert-plus":76,"safer-buffer":344,"stream":379,"tweetnacl":395,"util":401}],357:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 var assert = require('assert-plus');
@@ -85662,7 +86069,7 @@ module.exports = {
 	CertificateParseError: CertificateParseError
 };
 
-},{"assert-plus":76,"util":399}],356:[function(require,module,exports){
+},{"assert-plus":76,"util":401}],358:[function(require,module,exports){
 // Copyright 2018 Joyent, Inc.
 
 module.exports = Fingerprint;
@@ -85884,7 +86291,7 @@ Fingerprint._oldVersionDetect = function (obj) {
 	return ([1, 0]);
 };
 
-},{"./algs":351,"./certificate":352,"./errors":355,"./key":371,"./private-key":372,"./utils":375,"assert-plus":76,"crypto":134,"safer-buffer":342}],357:[function(require,module,exports){
+},{"./algs":353,"./certificate":354,"./errors":357,"./key":373,"./private-key":374,"./utils":377,"assert-plus":76,"crypto":134,"safer-buffer":344}],359:[function(require,module,exports){
 // Copyright 2018 Joyent, Inc.
 
 module.exports = {
@@ -86010,7 +86417,7 @@ function write(key, options) {
 	throw (new Error('"auto" format cannot be used for writing'));
 }
 
-},{"../key":371,"../private-key":372,"../utils":375,"./dnssec":358,"./pem":360,"./putty":363,"./rfc4253":364,"./ssh":366,"assert-plus":76,"safer-buffer":342}],358:[function(require,module,exports){
+},{"../key":373,"../private-key":374,"../utils":377,"./dnssec":360,"./pem":362,"./putty":365,"./rfc4253":366,"./ssh":368,"assert-plus":76,"safer-buffer":344}],360:[function(require,module,exports){
 // Copyright 2017 Joyent, Inc.
 
 module.exports = {
@@ -86299,7 +86706,7 @@ function write(key, options) {
 	}
 }
 
-},{"../dhe":353,"../key":371,"../private-key":372,"../ssh-buffer":374,"../utils":375,"assert-plus":76,"safer-buffer":342}],359:[function(require,module,exports){
+},{"../dhe":355,"../key":373,"../private-key":374,"../ssh-buffer":376,"../utils":377,"assert-plus":76,"safer-buffer":344}],361:[function(require,module,exports){
 // Copyright 2017 Joyent, Inc.
 
 module.exports = {
@@ -86653,7 +87060,7 @@ function getCertType(key) {
 	throw (new Error('Unsupported key type ' + key.type));
 }
 
-},{"../algs":351,"../certificate":352,"../identity":369,"../key":371,"../private-key":372,"../signature":373,"../ssh-buffer":374,"../utils":375,"./rfc4253":364,"assert-plus":76,"crypto":134,"safer-buffer":342}],360:[function(require,module,exports){
+},{"../algs":353,"../certificate":354,"../identity":371,"../key":373,"../private-key":374,"../signature":375,"../ssh-buffer":376,"../utils":377,"./rfc4253":366,"assert-plus":76,"crypto":134,"safer-buffer":344}],362:[function(require,module,exports){
 // Copyright 2018 Joyent, Inc.
 
 module.exports = {
@@ -86945,7 +87352,7 @@ function write(key, options, type) {
 	return (buf.slice(0, o));
 }
 
-},{"../algs":351,"../errors":355,"../key":371,"../private-key":372,"../utils":375,"./pkcs1":361,"./pkcs8":362,"./rfc4253":364,"./ssh-private":365,"asn1":75,"assert-plus":76,"crypto":134,"safer-buffer":342}],361:[function(require,module,exports){
+},{"../algs":353,"../errors":357,"../key":373,"../private-key":374,"../utils":377,"./pkcs1":363,"./pkcs8":364,"./rfc4253":366,"./ssh-private":367,"asn1":75,"assert-plus":76,"crypto":134,"safer-buffer":344}],363:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = {
@@ -87320,7 +87727,7 @@ function writePkcs1EdDSAPublic(der, key) {
 	throw (new Error('Public keys are not supported for EdDSA PKCS#1'));
 }
 
-},{"../algs":351,"../key":371,"../private-key":372,"../utils":375,"./pem":360,"./pkcs8":362,"asn1":75,"assert-plus":76,"safer-buffer":342}],362:[function(require,module,exports){
+},{"../algs":353,"../key":373,"../private-key":374,"../utils":377,"./pem":362,"./pkcs8":364,"asn1":75,"assert-plus":76,"safer-buffer":344}],364:[function(require,module,exports){
 // Copyright 2018 Joyent, Inc.
 
 module.exports = {
@@ -87941,7 +88348,7 @@ function writePkcs8EdDSAPrivate(key, der) {
 	der.endSequence();
 }
 
-},{"../algs":351,"../key":371,"../private-key":372,"../utils":375,"./pem":360,"asn1":75,"assert-plus":76,"safer-buffer":342}],363:[function(require,module,exports){
+},{"../algs":353,"../key":373,"../private-key":374,"../utils":377,"./pem":362,"asn1":75,"assert-plus":76,"safer-buffer":344}],365:[function(require,module,exports){
 // Copyright 2018 Joyent, Inc.
 
 module.exports = {
@@ -88042,7 +88449,7 @@ function wrap(txt, len) {
 	return (lines);
 }
 
-},{"../errors":355,"../key":371,"./rfc4253":364,"assert-plus":76,"safer-buffer":342}],364:[function(require,module,exports){
+},{"../errors":357,"../key":373,"./rfc4253":366,"assert-plus":76,"safer-buffer":344}],366:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = {
@@ -88210,7 +88617,7 @@ function write(key, options) {
 	return (buf.toBuffer());
 }
 
-},{"../algs":351,"../key":371,"../private-key":372,"../ssh-buffer":374,"../utils":375,"assert-plus":76,"safer-buffer":342}],365:[function(require,module,exports){
+},{"../algs":353,"../key":373,"../private-key":374,"../ssh-buffer":376,"../utils":377,"assert-plus":76,"safer-buffer":344}],367:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = {
@@ -88474,7 +88881,7 @@ function write(key, options) {
 	return (buf.slice(0, o));
 }
 
-},{"../algs":351,"../errors":355,"../key":371,"../private-key":372,"../ssh-buffer":374,"../utils":375,"./pem":360,"./rfc4253":364,"asn1":75,"assert-plus":76,"bcrypt-pbkdf":85,"crypto":134,"safer-buffer":342}],366:[function(require,module,exports){
+},{"../algs":353,"../errors":357,"../key":373,"../private-key":374,"../ssh-buffer":376,"../utils":377,"./pem":362,"./rfc4253":366,"asn1":75,"assert-plus":76,"bcrypt-pbkdf":85,"crypto":134,"safer-buffer":344}],368:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = {
@@ -88591,7 +88998,7 @@ function write(key, options) {
 	return (Buffer.from(parts.join(' ')));
 }
 
-},{"../key":371,"../private-key":372,"../utils":375,"./rfc4253":364,"./ssh-private":365,"assert-plus":76,"safer-buffer":342}],367:[function(require,module,exports){
+},{"../key":373,"../private-key":374,"../utils":377,"./rfc4253":366,"./ssh-private":367,"assert-plus":76,"safer-buffer":344}],369:[function(require,module,exports){
 // Copyright 2016 Joyent, Inc.
 
 var x509 = require('./x509');
@@ -88681,7 +89088,7 @@ function write(cert, options) {
 	return (buf.slice(0, o));
 }
 
-},{"../algs":351,"../certificate":352,"../identity":369,"../key":371,"../private-key":372,"../signature":373,"../utils":375,"./pem":360,"./x509":368,"asn1":75,"assert-plus":76,"safer-buffer":342}],368:[function(require,module,exports){
+},{"../algs":353,"../certificate":354,"../identity":371,"../key":373,"../private-key":374,"../signature":375,"../utils":377,"./pem":362,"./x509":370,"asn1":75,"assert-plus":76,"safer-buffer":344}],370:[function(require,module,exports){
 // Copyright 2017 Joyent, Inc.
 
 module.exports = {
@@ -89413,7 +89820,7 @@ function writeBitField(setBits, bitIndex) {
 	return (bits);
 }
 
-},{"../algs":351,"../certificate":352,"../identity":369,"../key":371,"../private-key":372,"../signature":373,"../utils":375,"./pem":360,"./pkcs8":362,"asn1":75,"assert-plus":76,"safer-buffer":342}],369:[function(require,module,exports){
+},{"../algs":353,"../certificate":354,"../identity":371,"../key":373,"../private-key":374,"../signature":375,"../utils":377,"./pem":362,"./pkcs8":364,"asn1":75,"assert-plus":76,"safer-buffer":344}],371:[function(require,module,exports){
 // Copyright 2017 Joyent, Inc.
 
 module.exports = Identity;
@@ -89788,7 +90195,7 @@ Identity._oldVersionDetect = function (obj) {
 	return ([1, 0]);
 };
 
-},{"./algs":351,"./errors":355,"./fingerprint":356,"./signature":373,"./utils":375,"asn1":75,"assert-plus":76,"crypto":134,"safer-buffer":342,"util":399}],370:[function(require,module,exports){
+},{"./algs":353,"./errors":357,"./fingerprint":358,"./signature":375,"./utils":377,"asn1":75,"assert-plus":76,"crypto":134,"safer-buffer":344,"util":401}],372:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 var Key = require('./key');
@@ -89830,7 +90237,7 @@ module.exports = {
 	CertificateParseError: errs.CertificateParseError
 };
 
-},{"./certificate":352,"./errors":355,"./fingerprint":356,"./identity":369,"./key":371,"./private-key":372,"./signature":373}],371:[function(require,module,exports){
+},{"./certificate":354,"./errors":357,"./fingerprint":358,"./identity":371,"./key":373,"./private-key":374,"./signature":375}],373:[function(require,module,exports){
 (function (Buffer){
 // Copyright 2018 Joyent, Inc.
 
@@ -90128,7 +90535,7 @@ Key._oldVersionDetect = function (obj) {
 };
 
 }).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":218,"./algs":351,"./dhe":353,"./ed-compat":354,"./errors":355,"./fingerprint":356,"./formats/auto":357,"./formats/dnssec":358,"./formats/pem":360,"./formats/pkcs1":361,"./formats/pkcs8":362,"./formats/putty":363,"./formats/rfc4253":364,"./formats/ssh":366,"./formats/ssh-private":365,"./private-key":372,"./signature":373,"./utils":375,"assert-plus":76,"crypto":134}],372:[function(require,module,exports){
+},{"../../is-buffer/index.js":218,"./algs":353,"./dhe":355,"./ed-compat":356,"./errors":357,"./fingerprint":358,"./formats/auto":359,"./formats/dnssec":360,"./formats/pem":362,"./formats/pkcs1":363,"./formats/pkcs8":364,"./formats/putty":365,"./formats/rfc4253":366,"./formats/ssh":368,"./formats/ssh-private":367,"./private-key":374,"./signature":375,"./utils":377,"assert-plus":76,"crypto":134}],374:[function(require,module,exports){
 // Copyright 2017 Joyent, Inc.
 
 module.exports = PrivateKey;
@@ -90376,7 +90783,7 @@ PrivateKey._oldVersionDetect = function (obj) {
 	return ([1, 0]);
 };
 
-},{"./algs":351,"./dhe":353,"./ed-compat":354,"./errors":355,"./fingerprint":356,"./formats/auto":357,"./formats/dnssec":358,"./formats/pem":360,"./formats/pkcs1":361,"./formats/pkcs8":362,"./formats/rfc4253":364,"./formats/ssh-private":365,"./key":371,"./signature":373,"./utils":375,"assert-plus":76,"crypto":134,"safer-buffer":342,"tweetnacl":393,"util":399}],373:[function(require,module,exports){
+},{"./algs":353,"./dhe":355,"./ed-compat":356,"./errors":357,"./fingerprint":358,"./formats/auto":359,"./formats/dnssec":360,"./formats/pem":362,"./formats/pkcs1":363,"./formats/pkcs8":364,"./formats/rfc4253":366,"./formats/ssh-private":367,"./key":373,"./signature":375,"./utils":377,"assert-plus":76,"crypto":134,"safer-buffer":344,"tweetnacl":395,"util":401}],375:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = Signature;
@@ -90692,7 +91099,7 @@ Signature._oldVersionDetect = function (obj) {
 	return ([1, 0]);
 };
 
-},{"./algs":351,"./errors":355,"./ssh-buffer":374,"./utils":375,"asn1":75,"assert-plus":76,"crypto":134,"safer-buffer":342}],374:[function(require,module,exports){
+},{"./algs":353,"./errors":357,"./ssh-buffer":376,"./utils":377,"asn1":75,"assert-plus":76,"crypto":134,"safer-buffer":344}],376:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = SSHBuffer;
@@ -90843,7 +91250,7 @@ SSHBuffer.prototype.write = function (buf) {
 	this._offset += buf.length;
 };
 
-},{"assert-plus":76,"safer-buffer":342}],375:[function(require,module,exports){
+},{"assert-plus":76,"safer-buffer":344}],377:[function(require,module,exports){
 // Copyright 2015 Joyent, Inc.
 
 module.exports = {
@@ -91249,7 +91656,7 @@ function opensshCipherInfo(cipher) {
 	return (inf);
 }
 
-},{"./algs":351,"./key":371,"./private-key":372,"asn1":75,"assert-plus":76,"crypto":134,"ecc-jsbn/lib/ec":147,"jsbn":222,"safer-buffer":342,"tweetnacl":393}],376:[function(require,module,exports){
+},{"./algs":353,"./key":373,"./private-key":374,"asn1":75,"assert-plus":76,"crypto":134,"ecc-jsbn/lib/ec":147,"jsbn":222,"safer-buffer":344,"tweetnacl":395}],378:[function(require,module,exports){
 'use strict';
 
 var isNative = /\.node$/;
@@ -91332,7 +91739,7 @@ module.exports = function (requireCache, callback, callbackForModulesToKeep, mod
 
 };
 
-},{}],377:[function(require,module,exports){
+},{}],379:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -91461,7 +91868,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":166,"inherits":217,"readable-stream/duplex.js":309,"readable-stream/passthrough.js":319,"readable-stream/readable.js":320,"readable-stream/transform.js":321,"readable-stream/writable.js":322}],378:[function(require,module,exports){
+},{"events":166,"inherits":217,"readable-stream/duplex.js":311,"readable-stream/passthrough.js":321,"readable-stream/readable.js":322,"readable-stream/transform.js":323,"readable-stream/writable.js":324}],380:[function(require,module,exports){
 (function (global){
 var ClientRequest = require('./lib/request')
 var response = require('./lib/response')
@@ -91549,7 +91956,7 @@ http.METHODS = [
 	'UNSUBSCRIBE'
 ]
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./lib/request":380,"./lib/response":381,"builtin-status-codes":123,"url":395,"xtend":405}],379:[function(require,module,exports){
+},{"./lib/request":382,"./lib/response":383,"builtin-status-codes":123,"url":397,"xtend":407}],381:[function(require,module,exports){
 (function (global){
 exports.fetch = isFunction(global.fetch) && isFunction(global.ReadableStream)
 
@@ -91626,7 +92033,7 @@ function isFunction (value) {
 xhr = null // Help gc
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],380:[function(require,module,exports){
+},{}],382:[function(require,module,exports){
 (function (process,global,Buffer){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -91957,7 +92364,7 @@ var unsafeHeaders = [
 ]
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":379,"./response":381,"_process":282,"buffer":122,"inherits":217,"readable-stream":320,"to-arraybuffer":384}],381:[function(require,module,exports){
+},{"./capability":381,"./response":383,"_process":284,"buffer":122,"inherits":217,"readable-stream":322,"to-arraybuffer":386}],383:[function(require,module,exports){
 (function (process,global,Buffer){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -92185,9 +92592,9 @@ IncomingMessage.prototype._onXHRProgress = function () {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":379,"_process":282,"buffer":122,"inherits":217,"readable-stream":320}],382:[function(require,module,exports){
-arguments[4][318][0].apply(exports,arguments)
-},{"dup":318,"safe-buffer":341}],383:[function(require,module,exports){
+},{"./capability":381,"_process":284,"buffer":122,"inherits":217,"readable-stream":322}],384:[function(require,module,exports){
+arguments[4][320][0].apply(exports,arguments)
+},{"dup":320,"safe-buffer":343}],385:[function(require,module,exports){
 (function (setImmediate,clearImmediate){
 var nextTick = require('process/browser.js').nextTick;
 var apply = Function.prototype.apply;
@@ -92266,7 +92673,7 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":282,"timers":383}],384:[function(require,module,exports){
+},{"process/browser.js":284,"timers":385}],386:[function(require,module,exports){
 var Buffer = require('buffer').Buffer
 
 module.exports = function (buf) {
@@ -92295,7 +92702,7 @@ module.exports = function (buf) {
 	}
 }
 
-},{"buffer":122}],385:[function(require,module,exports){
+},{"buffer":122}],387:[function(require,module,exports){
 /*!
  * Copyright (c) 2015, Salesforce.com, Inc.
  * All rights reserved.
@@ -93728,7 +94135,7 @@ exports.permuteDomain = require('./permuteDomain').permuteDomain;
 exports.permutePath = permutePath;
 exports.canonicalDomain = canonicalDomain;
 
-},{"../package.json":391,"./memstore":386,"./pathMatch":387,"./permuteDomain":388,"./pubsuffix-psl":389,"./store":390,"net":119,"punycode":120,"url":395,"util":399}],386:[function(require,module,exports){
+},{"../package.json":393,"./memstore":388,"./pathMatch":389,"./permuteDomain":390,"./pubsuffix-psl":391,"./store":392,"net":119,"punycode":120,"url":397,"util":401}],388:[function(require,module,exports){
 /*!
  * Copyright (c) 2015, Salesforce.com, Inc.
  * All rights reserved.
@@ -93906,7 +94313,7 @@ MemoryCookieStore.prototype.getAllCookies = function(cb) {
   cb(null, cookies);
 };
 
-},{"./pathMatch":387,"./permuteDomain":388,"./store":390,"util":399}],387:[function(require,module,exports){
+},{"./pathMatch":389,"./permuteDomain":390,"./store":392,"util":401}],389:[function(require,module,exports){
 /*!
  * Copyright (c) 2015, Salesforce.com, Inc.
  * All rights reserved.
@@ -93969,7 +94376,7 @@ function pathMatch (reqPath, cookiePath) {
 
 exports.pathMatch = pathMatch;
 
-},{}],388:[function(require,module,exports){
+},{}],390:[function(require,module,exports){
 /*!
  * Copyright (c) 2015, Salesforce.com, Inc.
  * All rights reserved.
@@ -94027,7 +94434,7 @@ function permuteDomain (domain) {
 
 exports.permuteDomain = permuteDomain;
 
-},{"./pubsuffix-psl":389}],389:[function(require,module,exports){
+},{"./pubsuffix-psl":391}],391:[function(require,module,exports){
 /*!
  * Copyright (c) 2018, Salesforce.com, Inc.
  * All rights reserved.
@@ -94067,7 +94474,7 @@ function getPublicSuffix(domain) {
 
 exports.getPublicSuffix = getPublicSuffix;
 
-},{"psl":292}],390:[function(require,module,exports){
+},{"psl":294}],392:[function(require,module,exports){
 /*!
  * Copyright (c) 2015, Salesforce.com, Inc.
  * All rights reserved.
@@ -94140,23 +94547,29 @@ Store.prototype.getAllCookies = function(cb) {
   throw new Error('getAllCookies is not implemented (therefore jar cannot be serialized)');
 };
 
-},{}],391:[function(require,module,exports){
+},{}],393:[function(require,module,exports){
 module.exports={
-  "_from": "tough-cookie@~2.4.3",
+  "_args": [
+    [
+      "tough-cookie@2.4.3",
+      "/home/eric/checkouts/shexSpec/shex.js"
+    ]
+  ],
+  "_from": "tough-cookie@2.4.3",
   "_id": "tough-cookie@2.4.3",
   "_inBundle": false,
   "_integrity": "sha512-Q5srk/4vDM54WJsJio3XNn6K2sCG+CQ8G5Wz6bZhRZoAe/+TxjWB/GlFAnYEbkYVlON9FMk/fE3h2RLpPXo4lQ==",
   "_location": "/tough-cookie",
   "_phantomChildren": {},
   "_requested": {
-    "type": "range",
+    "type": "version",
     "registry": true,
-    "raw": "tough-cookie@~2.4.3",
+    "raw": "tough-cookie@2.4.3",
     "name": "tough-cookie",
     "escapedName": "tough-cookie",
-    "rawSpec": "~2.4.3",
+    "rawSpec": "2.4.3",
     "saveSpec": null,
-    "fetchSpec": "~2.4.3"
+    "fetchSpec": "2.4.3"
   },
   "_requiredBy": [
     "/jsdom",
@@ -94165,9 +94578,8 @@ module.exports={
     "/request-promise-native"
   ],
   "_resolved": "https://registry.npmjs.org/tough-cookie/-/tough-cookie-2.4.3.tgz",
-  "_shasum": "53f36da3f47783b0925afa06ff9f3b165280f781",
-  "_spec": "tough-cookie@~2.4.3",
-  "_where": "/tmp/checkouts5/shexSpec/shex.js/node_modules/request",
+  "_spec": "2.4.3",
+  "_where": "/home/eric/checkouts/shexSpec/shex.js",
   "author": {
     "name": "Jeremy Stashewsky",
     "email": "jstash@gmail.com"
@@ -94175,7 +94587,6 @@ module.exports={
   "bugs": {
     "url": "https://github.com/salesforce/tough-cookie/issues"
   },
-  "bundleDependencies": false,
   "contributors": [
     {
       "name": "Alexander Savin"
@@ -94200,7 +94611,6 @@ module.exports={
     "psl": "^1.1.24",
     "punycode": "^1.4.1"
   },
-  "deprecated": false,
   "description": "RFC6265 Cookies and Cookie Jar for node.js",
   "devDependencies": {
     "async": "^1.4.2",
@@ -94239,7 +94649,7 @@ module.exports={
   "version": "2.4.3"
 }
 
-},{}],392:[function(require,module,exports){
+},{}],394:[function(require,module,exports){
 (function (process){
 'use strict'
 
@@ -94487,7 +94897,7 @@ if (process.env.NODE_DEBUG && /\btunnel\b/.test(process.env.NODE_DEBUG)) {
 exports.debug = debug // for test
 
 }).call(this,require('_process'))
-},{"_process":282,"assert":77,"events":166,"http":378,"https":215,"net":119,"safe-buffer":341,"tls":119,"util":399}],393:[function(require,module,exports){
+},{"_process":284,"assert":77,"events":166,"http":380,"https":215,"net":119,"safe-buffer":343,"tls":119,"util":401}],395:[function(require,module,exports){
 (function(nacl) {
 'use strict';
 
@@ -96877,7 +97287,7 @@ nacl.setPRNG = function(fn) {
 
 })(typeof module !== 'undefined' && module.exports ? module.exports : (self.nacl = self.nacl || {}));
 
-},{"crypto":89}],394:[function(require,module,exports){
+},{"crypto":89}],396:[function(require,module,exports){
 /** @license URI.js v4.2.1 (c) 2011 Gary Court. License: http://github.com/garycourt/uri-js */
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
@@ -98268,7 +98678,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 })));
 
 
-},{}],395:[function(require,module,exports){
+},{}],397:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -99002,7 +99412,7 @@ Url.prototype.parseHost = function() {
   if (host) this.hostname = host;
 };
 
-},{"./util":396,"punycode":120,"querystring":306}],396:[function(require,module,exports){
+},{"./util":398,"punycode":120,"querystring":308}],398:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -99020,7 +99430,7 @@ module.exports = {
   }
 };
 
-},{}],397:[function(require,module,exports){
+},{}],399:[function(require,module,exports){
 (function (global){
 
 /**
@@ -99091,11 +99501,11 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],398:[function(require,module,exports){
+},{}],400:[function(require,module,exports){
 arguments[4][79][0].apply(exports,arguments)
-},{"dup":79}],399:[function(require,module,exports){
+},{"dup":79}],401:[function(require,module,exports){
 arguments[4][80][0].apply(exports,arguments)
-},{"./support/isBuffer":398,"_process":282,"dup":80,"inherits":217}],400:[function(require,module,exports){
+},{"./support/isBuffer":400,"_process":284,"dup":80,"inherits":217}],402:[function(require,module,exports){
 /**
  * Convert array of 16 byte values to UUID string format of the form:
  * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
@@ -99121,7 +99531,7 @@ function bytesToUuid(buf, offset) {
 
 module.exports = bytesToUuid;
 
-},{}],401:[function(require,module,exports){
+},{}],403:[function(require,module,exports){
 // Unique ID creation requires a high quality random # generator.  In the
 // browser this is a little complicated due to unknown quality of Math.random()
 // and inconsistent support for the `crypto` API.  We do the best we can via
@@ -99157,7 +99567,7 @@ if (getRandomValues) {
   };
 }
 
-},{}],402:[function(require,module,exports){
+},{}],404:[function(require,module,exports){
 var rng = require('./lib/rng');
 var bytesToUuid = require('./lib/bytesToUuid');
 
@@ -99188,7 +99598,7 @@ function v4(options, buf, offset) {
 
 module.exports = v4;
 
-},{"./lib/bytesToUuid":400,"./lib/rng":401}],403:[function(require,module,exports){
+},{"./lib/bytesToUuid":402,"./lib/rng":403}],405:[function(require,module,exports){
 /*
  * verror.js: richer JavaScript errors
  */
@@ -99641,7 +100051,7 @@ WError.prototype.cause = function we_cause(c)
 	return (this.jse_cause);
 };
 
-},{"assert-plus":76,"core-util-is":128,"extsprintf":169,"util":399}],404:[function(require,module,exports){
+},{"assert-plus":76,"core-util-is":128,"extsprintf":169,"util":401}],406:[function(require,module,exports){
 var indexOf = function (xs, item) {
     if (xs.indexOf) return xs.indexOf(item);
     else for (var i = 0; i < xs.length; i++) {
@@ -99792,7 +100202,7 @@ exports.createContext = Script.createContext = function (context) {
     return copy;
 };
 
-},{}],405:[function(require,module,exports){
+},{}],407:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -99813,7 +100223,7 @@ function extend() {
     return target
 }
 
-},{}],406:[function(require,module,exports){
+},{}],408:[function(require,module,exports){
 var ShEx = {
   Parser:       require('./lib/ShExParser'),
   ShapeMapParser: require('./lib/ShapeMapParser'),
@@ -99831,5 +100241,5 @@ if (typeof require !== 'undefined' && typeof exports !== 'undefined')
   module.exports = ShEx;
 
 
-},{"./lib/ShExLoader":2,"./lib/ShExParser":3,"./lib/ShExUtil":4,"./lib/ShExValidator":5,"./lib/ShExWriter":6,"./lib/ShapeMap":7,"./lib/ShapeMapParser":9,"./lib/regex/nfax-val-1err":10,"./lib/regex/threaded-val-nerr":11,"n3":248}]},{},[406])(406)
+},{"./lib/ShExLoader":2,"./lib/ShExParser":3,"./lib/ShExUtil":4,"./lib/ShExValidator":5,"./lib/ShExWriter":6,"./lib/ShapeMap":7,"./lib/ShapeMapParser":9,"./lib/regex/nfax-val-1err":10,"./lib/regex/threaded-val-nerr":11,"n3":248}]},{},[408])(408)
 });

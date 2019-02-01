@@ -88,13 +88,12 @@ function done (validator) {
 
 function n3ify (ldterm) {
   if (typeof ldterm !== "object")
-    return ldterm;
-  var ret = "\"" + ldterm.value + "\"";
+    return ldterm[0] === '_' ? ShEx.N3.DataFactory.blankNode(ldterm.substr(2)) : ShEx.N3.DataFactory.namedNode(ldterm);
   if ("language" in ldterm)
-    return ret + "@" + ldterm.language;
+    return ShEx.N3.DataFactory.literal(ldterm.value, ldterm.language);
   if ("type" in ldterm)
-    return ret + "^^" + ldterm.type;
-  return ret;
+    return ShEx.N3.DataFactory.literal(ldterm.value, ShEx.N3.DataFactory.namedNode(ldterm.type));
+  return ShEx.N3.DataFactory.literal(ldterm.value);
 }
 
 function materializer (schema, nextBNode) {
@@ -106,7 +105,7 @@ function materializer (schema, nextBNode) {
     materialize: function (bindings, createRoot, shape, target) {
       shape = shape && shape !== ShEx.Validator.start? { type: "ShapeRef", reference: shape } : schema.start;
       target = target || ShEx.N3.Store();
-      target.addPrefixes(schema.prefixes); // not used, but seems polite
+      // target.addPrefixes(schema.prefixes); // not used, but seems polite
 
       // utility functions for e.g. s = add(B(), P(":value"), L("70", P("xsd:float")))
       function P (pname) { return ShEx.N3.Util.expandPrefixedName(pname, schema.prefixes); }
@@ -141,11 +140,11 @@ function materializer (schema, nextBNode) {
 }
 
 function myvisitTripleConstraint (expr, curSubjectx, nextBNode, target, visitor, schema, bindings, recurse, direct, checkValueExpr) {
-      function P (pname) { return ShEx.N3.Util.expandPrefixedName(pname, schema.prefixes); }
-      function L (value, modifier) { return ShEx.N3.Util.createLiteral(value, modifier); }
+      function P (pname) { return expandPrefixedName(pname, schema.prefixes); }
+      function L (value, modifier) { return ShEx.N3.DataFactory.literal(value, modifier); }
       function B () { return nextBNode(); }
       // utility functions for e.g. s = add(B(), P(":value"), L("70", P("xsd:float")))
-      function add (s, p, o) { target.addTriple({ subject: s, predicate: p, object: n3ify(o) }); return s; }
+      function add (s, p, o) { target.addQuad({ subject: s, predicate: ShEx.N3.DataFactory.namedNode(p), object: n3ify(o) }); return s; }
 
         var mapExts = (expr.semActs || []).filter(function (ext) { return ext.name === MapExt; });
         if (mapExts.length) {
@@ -209,6 +208,22 @@ function myvisitTripleConstraint (expr, curSubjectx, nextBNode, target, visitor,
           curSubjectx.cs = oldSubject;
         }
       }
+
+  // Expands the prefixed name to a full IRI (also when it occurs as a literal's type)
+  function expandPrefixedName (prefixedName, prefixes) {
+    var match = /(?:^|"\^\^)([^:\/#"'\^_]*):[^\/]*$/.exec(prefixedName), prefix, base, index;
+    if (match)
+      prefix = match[1], base = prefixes[prefix], index = match.index;
+    if (base === undefined)
+      return prefixedName;
+
+    // The match index is non-zero when expanding a literal's type
+    return index === 0 ? base + prefixedName.substr(prefix.length + 1)
+                       : prefixedName.substr(0, index + 3) +
+                         base + prefixedName.substr(index + prefix.length + 4);
+  }
+
+
 function extractBindingsDelMe (soln, min, max, depth) {
   if ("min" in soln && soln.min < min)
     min = soln.min
