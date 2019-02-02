@@ -51,10 +51,10 @@ var QueryParams = Getables.concat([
 function parseTurtle (text, meta, base) {
   var ret = ShEx.N3.Store();
   ShEx.N3.Parser._resetBlankNodeIds();
-  var parser = ShEx.N3.Parser({documentIRI: base, format: "text/turtle" });
+  var parser = ShEx.N3.Parser({baseIRI: base, format: "text/turtle" });
   var triples = parser.parse(text);
   if (triples !== undefined)
-    ret.addTriples(triples);
+    ret.addQuads(triples);
   meta.base = parser._base;
   meta.prefixes = parser._prefixes;
   return ret;
@@ -92,7 +92,7 @@ function rdflib_termToLex (node, resolver) {
   if (node.indexOf(resolver._basePath) === 0 &&
       ['#', '?', '/', '\\'].indexOf(node.substr(resolver._basePath.length)) === -1)
     return "<" + node.substr(resolver._basePath.length) + ">";
-  return ShEx.N3.Writer({ prefixes:resolver.meta.prefixes || {} })._encodeObject(node);
+  return ShEx.N3.Writer({ prefixes:resolver.meta.prefixes || {} })._encodeObject(rdfjsify(node));
 }
 function rdflib_lexToTerm (lex, resolver) {
   return lex === START_SHAPE_LABEL ? ShEx.Validator.start :
@@ -114,6 +114,25 @@ function rdflib_lexToTerm (lex, resolver) {
   return lex === ShEx.Validator.start ? lex : lex[0] === "<" ? lex.substr(1, lex.length - 2) : lex;
 }
 // </n3.js-specific>
+
+  function scalarify (node) {
+    return ShEx.N3.Util.isNamedNode(node)
+      ? node.id
+      : ShEx.N3.Util.isBlankNode(node)
+      ? node.id
+      : node.id
+  }
+
+  // "\"1999-12-31\"^^http://www.w3.org/2001/XMLSchema#date"
+  function rdfjsify (node) {
+    return node[0] === "_"
+      ? ShEx.N3.DataFactory.blankNode(node.substr(2))
+      : node[0] === "\""
+      ? ShEx.N3.DataFactory.literal(getLiteralValue(node),
+                              getLiteralLanguage(node) ||
+                              ShEx.N3.DataFactory.namedNode(getLiteralType(node)))
+      : ShEx.N3.DataFactory.namedNode(node);
+  }
 
 
 // caches for textarea parsers
@@ -1206,7 +1225,7 @@ function copyEditMapToFixedMap () {
   function getTriples (s, p, o) {
     var get = s === ShEx.ShapeMap.focus ? "subject" : "object";
     return Caches.inputData.refresh().getQuads(mine(s), mine(p), mine(o)).map(t => {
-      return Caches.inputData.meta.termToLex(t[get]);
+      return Caches.inputData.meta.termToLex(scalarify(t[get]));
     });
     function mine (term) {
       return term === ShEx.ShapeMap.focus || term === ShEx.ShapeMap.wildcard
