@@ -51,7 +51,7 @@ if (cmds.shex.length === 0 && cmds.json.length === 0) abort("no shex specified")
 
 
 ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
-  var db = N3Store();//     [1,2,3].forEach(i => { db.addTriple("http://a.example/S", "http://a.example/p", "\""+i+"\""); }); 
+  var db = N3Store();//     [1,2,3].forEach(i => { db.addQuad("http://a.example/S", "http://a.example/p", "\""+i+"\""); }); 
   var ignored = [];
   function remove (ob, attr) {
     var ret = ob[attr];
@@ -95,17 +95,17 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
   function Schema (shapes) {
     Object.keys(shapes).forEach(key => {
       var label = byType(shapes, key, key);
-      // db.addTriple("http://a.example/Schema", "hasShape", label);
+      // db.addQuad("http://a.example/Schema", "hasShape", label);
     });
   }
   function Shape (shapeExpr, label) {
     var expr = byType(shapeExpr, "expression");
-    db.addTriple(label, propertyP, expr);
+    db.addQuad(label, propertyP, expr);
     return label;
   }
   function TripleConstraint (tripleExpr) {
     var propN = bnode();
-    db.addTriple(propN, predicateP, remove(tripleExpr, "predicate"));
+    db.addQuad(propN, predicateP, remove(tripleExpr, "predicate"));
     var r = byType(tripleExpr, "valueExpr", propN);
     return propN;
   }
@@ -116,17 +116,17 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
     l.forEach(i => {
       if (dirty) {
         var n = bnode();
-        db.addTriple(tail, restP, n);
+        db.addQuad(tail, restP, n);
         tail = n;
       }
-      db.addTriple(tail, firstP, i);
+      db.addQuad(tail, firstP, i);
       dirty = true;
     });
-    db.addTriple(tail, restP, nilP);
+    db.addQuad(tail, restP, nilP);
     return head;
   }
   function NodeConstraint (nodeExpr, propN) {
-    //    db.addTriple(propN, predicateP, remove(nodeExpr, "predicate"));
+    //    db.addQuad(propN, predicateP, remove(nodeExpr, "predicate"));
     var ors = [];
     //    db.addNode(propN, shapeP, shN);
     ["values"].map(attr => {
@@ -136,11 +136,11 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
       }
     });
     if (ors.length === 1)
-      db.addTriple(propN, shapeP, ors[0]);
+      db.addQuad(propN, shapeP, ors[0]);
     else if (ors.length > 1) {
       var or = bnode();
-      db.addTriple(propN, shapeP, or);
-      db.addTriple(or, orP, list(ors));
+      db.addQuad(propN, shapeP, or);
+      db.addQuad(or, orP, list(ors));
     }
     return ors;
   }
@@ -159,7 +159,7 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
       });
       if (ins.length > 0) {
         var cN = bnode(), inN = bnode();
-        db.addTriple(cN, inP, list(ins));
+        db.addQuad(cN, inP, list(ins));
         ret.push(cN)
         
       }
@@ -167,7 +167,7 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
         var cN = bnode();
         ret.push(cN);
         stems.forEach(n => {
-          db.addTriple(cN, stemP, n.stem);
+          db.addQuad(cN, stemP, n.stem);
         });
       }
       return ret;
@@ -181,7 +181,7 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
             lst.ins.push(ex);
           } else {
             var not = bnode();
-            db.addTriple(not, notP, inOrStem([ex])[0]);
+            db.addQuad(not, notP, inOrStem([ex])[0]);
             lst.excls.push(not);
           }
           return lst;
@@ -189,19 +189,19 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
         if (lst2.ins.length > 0) {
           var not = bnode();
           var stin = bnode(); //, list = bnode();
-          db.addTriple(not, notP, stin);
-          db.addTriple(stin, inP, list(lst2.ins));
+          db.addQuad(not, notP, stin);
+          db.addQuad(stin, inP, list(lst2.ins));
           lst2.excls.push(not);
         }
         if (lst2.excls.length) {
           var andN = bnode(), st = bnode();
           ors.push(andN);
-          db.addTriple(andN, andP, list([st].concat(lst2.excls)));
-          db.addTriple(st, stemP, n.stem);
+          db.addQuad(andN, andP, list([st].concat(lst2.excls)));
+          db.addQuad(st, stemP, n.stem);
         } else {
           var cN = bnode();
           ors.push(cN)
-          db.addTriple(cN, stemP, n.stem);
+          db.addQuad(cN, stemP, n.stem);
         }
       });
     }
@@ -213,12 +213,12 @@ ShExLoader.load(cmds.shex, cmds.json, [], []).then(function (loaded) {
   Schema(loaded.schema.shapes);
   remove(schema, "shapes");
   empty(schema);
-  var tz = db.getTriples();
+  var tz = db.getQuads();
   var w = require("n3").Writer({ prefixes: {
     my: "http://a.example/",
     sh: "http://www.w3.org/ns/shacl#"
   } });
-  w.addTriples(tz);
+  w.addQuads(tz);
   w.end(function (error, result) {
     console.log(result);
   });

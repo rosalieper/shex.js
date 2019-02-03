@@ -111,7 +111,7 @@ function materializer (schema, nextBNode) {
       function P (pname) { return ShEx.N3.Util.expandPrefixedName(pname, schema.prefixes); }
       function L (value, modifier) { return ShEx.N3.Util.createLiteral(value, modifier); }
       function B () { return nextBNode(); }
-      function add (s, p, o) { target.addTriple({ subject: s, predicate: p, object: n3ify(o) }); return s; }
+      function add (s, p, o) { target.addQuad({ subject: s, predicate: p, object: n3ify(o) }); return s; }
 
       var curSubject = createRoot || B();
       var curSubjectx = {cs: curSubject};

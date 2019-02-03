@@ -50,9 +50,9 @@ if ("regex-module" in cmds) {
 function resolveRelativeIRI (baseIri, relativeIri) {
   if (!N3.Util.isNamedNode(relativeIri))
     return relativeIri; // not really an IRI
-  var p = N3.Parser({ documentIRI: baseIri });
+  var p = N3.Parser({ baseIRI: baseIri });
   p._readSubject({type: "IRI", value: relativeIri});
-  return p._subject;
+  return p._subject.value;
 }
 
 function resolvePrefixedIRI (prefixedIri, prefixes) {

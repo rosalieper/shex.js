@@ -199,7 +199,7 @@ describe("A ShEx parser", function () {
            try {
              var schemaGraph = N3.Store();
              schemaGraph.addQuads(N3.Parser({baseIRI: BASE, blankNodePrefix: "", format: "text/turtle"}).parse(schema));
-             // console.log(schemaGraph.getTriples());
+             // console.log(schemaGraph.getQuads());
              var f = N3.DataFactory;
              var schemaRoot = schemaGraph.getQuads(null, f.namedNode(ShExUtil.RDF.type), f.namedNode(nsPath + "shex#Schema"))[0].subject;
              parser._setFileName(ShExRSchemaFile);
@@ -339,7 +339,7 @@ describe("A ShEx parser", function () {
           .to.deep.equal("http://a.example/def#b");
       });
 
-      ShExParser.construct(); // !!! horrible hack to reset no documentIRI
+      ShExParser.construct(); // !!! horrible hack to reset no baseIRI
       // this is a serious bug affecting reentrancy -- need to figure out how to get _setBase into yy
     });
 
@@ -361,7 +361,7 @@ describe("A ShEx parser", function () {
           .to.deep.equal("http://a.example/def#");
       });
 
-      ShExParser.construct(); // !!! horrible hack to reset no documentIRI
+      ShExParser.construct(); // !!! horrible hack to reset no baseIRI
       // this is a serious bug affecting reentrancy -- need to figure out how to get _setBase into yy
     });
   }

@@ -170,7 +170,7 @@ function findNodesAndValidate (loaded, parms, options) {
     var triples = loaded.data.getQuads(null, RDF_TYPE, type);
     return triples.length > 0 ? triples.map(t => t.subject) : [ShExUtil.NotSupplied];
   };
-  function getTriples (s, p, o) {
+  function getQuads (s, p, o) {
     var get = s === ShEx.ShapeMap.focus ? "subject" : "object";
     return loaded.data.getQuads(mine(s), mine(p), mine(o)).map(
       t => t[get]
@@ -188,7 +188,7 @@ function findNodesAndValidate (loaded, parms, options) {
         ? allNodesWithType(ShExUtil.parsePassedNode(nodeTypeP, loaded.dataMeta[0],
 						    null, knownType, x =>  x))
         : typeof nodeP === "object" && nodeP.type === "TriplePattern"
-        ? getTriples(nodeP.subject, nodeP.predicate, nodeP.object)
+        ? getQuads(nodeP.subject, nodeP.predicate, nodeP.object)
         : [ShExUtil.parsePassedNode(nodeP, loaded.dataMeta[0], someIRInode,
                                  MISC_NODES ? () => true : knownNode, x => x)]; // accept unknown nodes
     var shape, shapeLabel;
@@ -612,9 +612,9 @@ function runValidator (graph, shapeMap, schema, options) {
        then(function (loaded) {
        var db = require("../extensions/shex-map").materializer(loaded.schema).
        materialize(validator.semActHandler.results["http://shex.io/extensions/Map/#"], "tag:b0").
-       getTriples(null, null, null);
+       getQuads(null, null, null);
        var w = require("n3").Writer({ prefixes: { map: "http://shex.io/extensions/Map/#" } });
-       w.addTriples(db); w.end(function (error, result) { console.log(result); });
+       w.addQuads(db); w.end(function (error, result) { console.log(result); });
        });'
     */
     return eval("function (validator) {\n" + cmds.exec + "}")(validator);
@@ -651,22 +651,22 @@ function loadRDFmanifest (cmds) {
     var testNodes = cmds["test-name"].length ?
         cmds["test-name"].reduce((ret, testName) => {
           var pattern = RegExp(testName);
-          loaded.data.getTriples(null, mf+"name", null).filter(function (triple) {
+          loaded.data.getQuads(null, mf+"name", null).filter(function (triple) {
             if (N3.Util.getLiteralValue(triple.object).match(pattern))
               ret.push(triple.subject);
           });
           return ret;
         }, []) :
-        loaded.data.getTriples(null, mf+"action", null).map(function (t) {
-          return t.subject;
+        loaded.data.getQuads(null, mf+"action", null).map(function (t) {
+          return scalarify(t.subject);
         });
     var tests = testNodes.map(function (subject) {
-      var action = loaded.data.getTriples(subject, mf+"action", null)[0].object;
+      var action = loaded.data.getQuads(subject, mf+"action", null)[0].object;
       var validatorOptions = Object.assign({}, ValidatorOptions);
       var schemaOptions = Object.assign({}, SchemaOptions);
-      var traits = loaded.data.getTriples(subject, sht+"trait", null);
+      var traits = loaded.data.getQuads(subject, sht+"trait", null);
       traits.forEach(function (t) {
-        var tStr = t.object.substr(sht.length);
+        var tStr = t.object.value.substr(sht.length);
         tStr = tStr.substr(0, 1).toLowerCase() + tStr.substr(1);
         if (tStr in TraitToOption)
           validatorOptions[TraitToOption[tStr]] = tStr;
@@ -682,9 +682,9 @@ function loadRDFmanifest (cmds) {
                     !(cmds[elt[0]].constructor === Array && cmds[elt[0]].length === 0)) {
                   ret[elt[0]] = cmds[elt[0]];
                 } else {
-                  var m = loaded.data.getTriples(action, sht+elt[1], null);
+                  var m = loaded.data.getQuads(action, sht+elt[1], null);
                   if (m.length > 0) {
-                    var v = m[0].object;
+                    var v = m[0].object.value;
                     ret[elt[0]] = elt[2] ? [v] : v;
                   }
                 }
@@ -877,7 +877,7 @@ function runServer (serverLoaded, serverParms, serverOptions) {
           load(schemaFiles, [], dataFiles, [], SchemaOptions, undefined).
           then(function (loaded) {
             // add server-loaded (meta)data
-            serverLoaded.data.getQuads().forEach(t => { loaded.data.addTriple(t); });
+            serverLoaded.data.getQuads().forEach(t => { loaded.data.addQuad(t); });
             loaded.data = ShExUtil.makeN3DB(loaded.data);
             loaded.dataMeta = loaded.dataMeta.concat(serverLoaded.dataMeta);
 
@@ -956,3 +956,23 @@ function extend (base) {
       base[name] = arg[name];
   return base;
 }
+
+  function scalarify (node) {
+    return ShEx.N3.Util.isNamedNode(node)
+      ? node.id
+      : ShEx.N3.Util.isBlankNode(node)
+      ? node.id
+      : node.id
+  }
+
+  // "\"1999-12-31\"^^http://www.w3.org/2001/XMLSchema#date"
+  function rdfjsify (node) {
+    return node[0] === "_"
+      ? ShEx.N3.DataFactory.blankNode(node.substr(2))
+      : node[0] === "\""
+      ? ShEx.N3.DataFactory.literal(getLiteralValue(node),
+                              getLiteralLanguage(node) ||
+                              ShEx.N3.DataFactory.namedNode(getLiteralType(node)))
+      : ShEx.N3.DataFactory.namedNode(node);
+  }
+

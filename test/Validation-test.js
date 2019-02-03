@@ -242,7 +242,7 @@ describe("A ShEx validator", function () {
 function resolveRelativeIRI (baseIri, relativeIri) {
   var p = N3.Parser({ baseIRI: baseIri });
   p._readSubject({type: "IRI", value: relativeIri});
-  return p._subject.id;
+  return p._subject.value;
 }
 
 // Parses a JSON object, restoring `undefined` values
