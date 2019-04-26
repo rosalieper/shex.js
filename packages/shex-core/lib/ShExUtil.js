@@ -2166,7 +2166,43 @@ var ShExUtil = {
       return string;
     }
     catch (error) { console.warn(error); return ''; }
-  }
+  },
+
+  shexPath: function (schema, iriResolver) {
+    var _ShExUtil = this;
+    const navigation = new Map()
+    navigation.set(schema, []) // schema has no parents
+
+    const parents = [schema]
+    const visitor = _ShExUtil.Visitor()
+
+    const oldVisitExpression = visitor.visitExpression
+    visitor.visitExpression = function (expr) {
+      navigation.set(expr, parents.slice())
+      parents.push(expr)
+      let ret = oldVisitExpression.call(visitor, expr)
+      parents.pop()
+      return ret
+    }
+
+    const oldVisitShapeExpr = visitor.visitShapeExpr
+    visitor.visitShapeExpr = function (expr, label) {
+      navigation.set(expr, parents.slice())
+      parents.push(expr)
+      let ret = oldVisitShapeExpr.call(visitor, expr, label)
+      parents.pop()
+      return ret
+    }
+
+    visitor.visitSchema(schema)
+
+    return {
+      search: function (path, context = schema) {
+        console.log(path, navigation.get(context))
+        return { fake: true }
+      }
+    }
+  },
 
 };
 
