@@ -1616,6 +1616,10 @@ function loadSearchParameters () {
     return;
 
   var iface = parseQueryString(location.search);
+  if (!("ui" in iface) || iface.ui[iface.ui.length -1] !== "full") {
+    $("#results").hide();
+    $("#menuForm").hide();
+  }
 
   toggleControlsArrow("down");
   $(".manifest li").text("no manifest schemas loaded");
@@ -1769,7 +1773,6 @@ function customizeInterface () {
     $("#inputData .status").html("data (<span id=\"dataDialect\">Turtle</span>)").hide();
     $("#actions").parent().children().not("#actions").show();
     $("#title img, #title h1").show();
-    $("#menuForm").removeAttr("style");
     $("#controls").css("position", "absolute");
   }
 }
