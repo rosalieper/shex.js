@@ -249,7 +249,7 @@ function makeSchemaCache (selection) {
   ret.getItems = function () {
     var obj = this.refresh();
     var start = "start" in obj ? [START_SHAPE_LABEL] : [];
-    var rest = "shapes" in obj ? Object.keys(obj.shapes).map(Caches.inputSchema.meta.termToLex) : [];
+    var rest = "shapes" in obj ? obj.shapes.map(se => Caches.inputSchema.meta.termToLex(se.id)) : [];
     return start.concat(rest);
   };
   return ret;
@@ -671,7 +671,10 @@ function disableResultsAndValidate (evt, done) {
     results.append(
       $("<div/>").addClass("warning").append(
         $("<h2/>").text("see shape map errors above"),
-        $("<button/>").text("validate (ctl-enter)").on("click", disableResultsAndValidate),
+        $("<button/>").append(
+          $("<span/>").addClass("validate-label").text("validate"),
+          " (ctl-enter)"
+        ).on("click", disableResultsAndValidate),
         " again to continue."
       )
     );
@@ -747,7 +750,8 @@ function callValidator (done) {
           return;
         } else if (msg.data.response !== "created")
           throw "expected created: " + JSON.stringify(msg.data);
-        $("#validate").addClass("stoppable").text("abort (ctl-enter)");
+        $("#validate").addClass("stoppable");
+        $("#validate .validate-label").text("abort");
         $("#validate").off("click", disableResultsAndValidate);
         $("#validate").on("click", terminateWorker);
 
@@ -784,7 +788,8 @@ function callValidator (done) {
       }
 
       function workerUICleanup () {
-        $("#validate").removeClass("stoppable").text("validate (ctl-enter)");
+        $("#validate").removeClass("stoppable");
+        $("#validate .validate-label").text("validate");
         $("#validate").off("click", terminateWorker);
         $("#validate").on("click", disableResultsAndValidate);
       }
@@ -876,31 +881,6 @@ function callValidator (done) {
       }
 
     } else {
-      var outputLanguage = Caches.inputSchema.language === "ShExJ" ? "ShExC" : "ShExJ";
-      $("#results .status").
-        text("parsed "+Caches.inputSchema.language+" schema, generated "+outputLanguage+" ").
-        append($("<button>(copy to input)</button>").
-               css("border-radius", ".5em").
-               on("click", function () {
-                 Caches.inputSchema.set($("#results div").text(), DefaultBase);
-               })).
-        append(":").
-        show();
-      var parsedSchema;
-      if (Caches.inputSchema.language === "ShExJ") {
-        new ShEx.Writer({simplifyParentheses: false}).writeSchema(Caches.inputSchema.parsed, (error, text) => {
-          if (error) {
-            $("#results .status").text("unwritable ShExJ schema:\n" + error).show();
-            // res.addClass("error");
-          } else {
-            results.append($("<pre/>").text(text).addClass("passes"));
-          }
-        });
-      } else {
-        var pre = $("<pre/>");
-        pre.text(JSON.stringify(ShEx.Util.AStoShExJ(ShEx.Util.canonicalize(Caches.inputSchema.parsed)), null, "  ")).addClass("passes");
-        results.append(pre);
-      }
       results.finish();
       if (done) { done() }
     }
@@ -1100,7 +1080,7 @@ function addEditMapPairs (pairs, target) {
       rows: '1',
       type: 'text',
       class: 'data focus'
-    }).text(node).on("change", markEditMapDirty);
+    }).text(node).on("input", markEditMapDirty);
     var joinerElt = $("<span>", {
       class: 'shapeMap-joiner'
     }).append("@").addClass(pair.status);
@@ -1121,7 +1101,7 @@ function addEditMapPairs (pairs, target) {
       type: 'text',
       value: shape,
       class: 'schema inputShape'
-    }).on("change", markEditMapDirty);
+    }).on("input", markEditMapDirty);
     var addElt = $("<button/>", {
       class: "addPair",
       title: "add a node/shape pair"}).text("+");
@@ -1259,6 +1239,7 @@ function prepareControls () {
         copyEditMapToTextMap();
     }
   });
+  $("#textMap").on("input", markEditMapDirty);
   $("#textMap").on("change", evt => {
     results.clear();
     copyTextMapToEditMap();
@@ -1403,6 +1384,10 @@ var parseQueryString = function(query) {
 
 function markEditMapDirty () {
   $("#editMap").attr("data-dirty", true);
+  if ($("#textMap").data("isSparqlQuery")) {
+    // query results have to be fetched first before validation can happen
+    $("#validate .validate-label").text("run query to fetch entities");
+  }
 }
 
 function markEditMapClean () {
@@ -1471,6 +1456,7 @@ function copyEditMapToFixedMap () {
       focusElt.scrollLeft = focusElt.scrollWidth;
     });
     fixedMapTab.text(restoreText).removeClass("running");
+    $("#validate .validate-label").text("validate");
   });
 
   function getQuads (s, p, o) {
@@ -1605,6 +1591,9 @@ function loadSearchParameters () {
     return;
 
   var iface = parseQueryString(location.search);
+  if (!("ui" in iface) || iface.ui[iface.ui.length -1] !== "full") {
+    $("#menuForm").hide();
+  }
 
   toggleControlsArrow("down");
   $(".manifest li").text("no manifest schemas loaded");
@@ -1620,6 +1609,11 @@ function loadSearchParameters () {
   }
   if ("textMapIsSparqlQuery" in iface) {
     $("#textMap").data("isSparqlQuery", true)
+      .attr("placeholder", "SELECT ?id WHERE {\n    # ...\n}");
+    $("#validate .validate-label").text("run query to fetch entities");
+    $("textMap-tab-header a").text('Query');
+    $("#editMap-tab-header").remove();
+    $("#fixedMap-tab-header a").text('Entities to check');
   }
 
   // Load all known query parameters.
@@ -1699,6 +1693,9 @@ function loadSearchParameters () {
          iface.schema.reduce((r, elt) => { return r+elt.length; }, 0))
        && shapeMapErrors.length === 0) {
       callValidator();
+      if (!hasFocusNode()) {
+        $("#textMap").focus();
+      }
     }
   });
 }
@@ -1750,7 +1747,6 @@ function customizeInterface () {
     $("#inputData .status").html("data (<span id=\"dataDialect\">Turtle</span>)").hide();
     $("#actions").parent().children().not("#actions").show();
     $("#title img, #title h1").show();
-    $("#menuForm").removeAttr("style");
     $("#controls").css("position", "absolute");
   }
 }
@@ -1964,6 +1960,7 @@ function prepareManifest (demoList, base) {
   }, {});
   var nestingAsList = Object.keys(nesting).map(e => nesting[e]);
   paintManifest("#inputSchema .manifest ul", nestingAsList, pickSchema, listItems, "inputSchema");
+  $("#inputSchema .manifest").css("visibility", nestingAsList.length > 0 ? "visible" : "hidden");
   var timeouts = Object.keys(Caches).reduce((acc, k) => {
     acc[k] = undefined;
     return acc;

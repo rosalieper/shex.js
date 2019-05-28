@@ -46,7 +46,7 @@
       #inputData textarea, .data, .data.ui-dialog-content { background-color: #f4fff4; color: #000000; border-color: #f0a133 }
       #inputData li.selected button { background-color: #e8ffe8; color: #000000; }
       #manifestDrop { border-color: white; width: 100%; }
-      #manifestDrop div.manifest { overflow: auto; max-height: 10ex; }
+      #manifestDrop div.manifest { overflow: auto; max-height: 12ex; }
       #inputSchema li button, #inputData li button {
         font-size: .7em;
         padding: 0em 2ex;
@@ -301,8 +301,8 @@ ul {
         <textarea rows="25" class="schema droparea" style="width: 100%"></textarea>
         <div>
           <div id="manifestDrop" class="droparea">
-            <p>Manifest:</p>
             <div class="manifest">
+              <p>Manifest:</p>
               <ul>
                 <li>Javascript is disabled or slow to load or something went a bit pear-shaped.</li>
               </ul>
@@ -312,12 +312,12 @@ ul {
             <div>
             <div id="shapeMap-tabs" class="droparea" style="width: 100%">
               <ul>
-                <li><a href="#textMap">Query Map</a></li>
-                <li><a href="#editMap-tab">Query Map Editor</a></li>
-                <li><a href="#fixedMap-tab">Fixed Map</a></li>
+                <li id="textMap-tab-header"><a href="#textMap">Query Map</a></li>
+                <li id="editMap-tab-header"><a href="#editMap-tab">Query Map Editor</a></li>
+                <li id="fixedMap-tab-header"><a href="#fixedMap-tab">Fixed Map</a></li>
               </ul>
               <!-- <div id="textMap-tab"> -->
-                <textarea id="textMap" style="width:100%; height:100%;"></textarea>
+                <textarea id="textMap" style="width:100%; height:100%;" placeholder="&lt;SomeFocusNode&gt;@START"></textarea>
               <!-- </div> -->
               <div id="editMap-tab">
                 <table id="editMap" data-dirty="false" style="width:100%;">
@@ -363,7 +363,7 @@ ul {
             </div>
           </div>
           <div style="clear:both; padding-top: .5em;"/>
-              <button id="validate">validate (ctl-enter)</button>
+              <button id="validate"><span class="validate-label">validate</span> (ctl-enter)</button>
         </div>
       </div>
     </div>
@@ -413,7 +413,7 @@ ShExWebApp = (function () {
     <script src="../node_modules/n3/lib/N3Util.js"       ></script><script>modules["./N3Util"]        = module.exports;</script>
     <script src="../node_modules/n3/lib/N3Lexer.js"      ></script><script>modules["n3"]["Lexer"] = modules["./N3Lexer"] = module.exports;</script>
     <script src="../node_modules/n3/lib/N3Parser.js"     ></script><script>modules["n3"]["Parser"]    = module.exports;</script>
-    <script src="../node_modules/n3/lib/N3Store.js"      ></script><script>modules["n3"]["Store"]     = module.exports;</script>
+    <script>modules["stream"] = {Readable: null}</script><script src="../node_modules/n3/lib/N3Store.js"      ></script><script>modules["n3"]["Store"]     = module.exports;</script>
 
     <script src="../node_modules/@shexjs/core/node_modules/hierarchy-closure/hierarchy-closure.js"></script><script>modules["hierarchy-closure"] = module.exports;</script>
 
